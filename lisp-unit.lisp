@@ -53,7 +53,7 @@ functions or even macros does not require reloading any tests.
 (in-package :cl-user)
 
 (defpackage :lisp-unit
-  (:use :common-lisp)
+  (:use :common-lisp :iter)
   ;; Print parameters
   (:export :*print-summary*
            :*print-failures*
@@ -91,58 +91,51 @@ functions or even macros does not require reloading any tests.
            :print-errors
            :summarize-results)
   ;; Functions for extensibility via signals
-  (:export :signal-results
-           :test-run-complete
+  (:export :test-run-complete
            :results)
   ;; Utility predicates
   (:export :logically-equal :set-equal))
 
 (in-package :lisp-unit)
+(cl-interpol:enable-interpol-syntax)
+
+(defvar *log-level* 1)
+
+(defun %ts (&optional (time (get-universal-time)))
+  "returns a date as {y}{mon}{d}-{h}{min}{s}, defaults to get-universal-time
+   intended for use in datestamping filenames
+  "
+  (multiple-value-bind ( s min h d mon y  )
+      (decode-universal-time time)
+    (format nil "~d~2,'0d~2,'0d-~2,'0d~2,'0d~2,'0d"  y mon d h min s)))
+
+(defun %log (message &key (level 0))
+  (when (<= *log-level* level)
+    (format *test-log-stream* message)))
+
+(defmacro %log-around ((message &key (level 0))&body body)
+  `(unwind-protect
+    (progn
+      (%log #?"${ (%ts) } START ${,message}" :level ,level)
+      ,@body)
+    (%log #?"${ (%ts) }   END ${,message}" :level ,level)))
+
+(defvar *test-stream* *standard-output*)
+(defvar *test-log-stream* *test-stream*)
 
 ;;; Global counters
 
-(defparameter *pass* 0
-  "The passed assertion results.")
-
-(defparameter *fail* ()
-  "The failed assertion results.")
-
-(defun reset-counters ()
-  "Reset the counters to empty lists."
-  (setf *pass* 0 *fail* ()))
 
 ;;; Global options
 
-(defparameter *print-summary* nil
+(defparameter *print-summary* t
   "Print a summary of the pass, fail, and error count if non-nil.")
 
-(defparameter *print-failures* nil
+(defparameter *print-failures* t
   "Print failure messages if non-NIL.")
 
-(defparameter *print-errors* nil
+(defparameter *print-errors* t
   "Print error messages if non-NIL.")
-
-(defparameter *use-debugger* nil
-  "If not NIL, enter the debugger when an error is encountered in an
-assertion.")
-
-(defparameter *signal-results* nil
-  "Signal the result if non NIL.")
-
-(defun use-debugger-p (condition)
-  "Debug or ignore errors."
-  (cond
-   ((eq :ask *use-debugger*)
-    (y-or-n-p "~A -- debug?" condition))
-   (*use-debugger*)))
-
-(defun use-debugger (&optional (flag t))
-  "Use the debugger when testing, or not."
-  (setq *use-debugger* flag))
-
-(defun signal-results (&optional (flag t))
-  "Signal the results for extensibility."
-  (setq *signal-results* flag))
 
 ;;; Global unit test database
 
@@ -215,31 +208,37 @@ assertion.")
 
 ;;; Unit test definition
 
+(defvar *unit-test* nil
+  "The currently executing unit test")
+
 (defclass unit-test ()
-  ((doc
-    :type string
-    :initarg :doc
-    :reader doc)
-   (code
-    :type list
-    :initarg :code
-    :reader code))
-  (:default-initargs :doc "" :code ())
+  ((name :accessor name :initarg :name :initform nil)
+   (doc :accessor doc :initarg :doc :initform nil)
+   (code :accessor code :initarg :code :initform nil
+         :documentation "The forms to produce the fn")
+   (tags :accessor tags :initarg :tags :initform nil))
   (:documentation
    "Organize the unit test documentation and code."))
 
-;;; NOTE: Shamelessly taken from PG's analyze-body
-(defun parse-body (body &optional doc tag)
-  "Separate the components of the body."
-  (let ((item (first body)))
-    (cond
-     ((and (listp item) (eq :tag (first item)))
-      (parse-body (rest body) doc (nconc (rest item) tag)))
-     ((and (stringp item) (not doc) (rest body))
-      (if tag
-          (values doc tag (rest body))
-          (parse-body (rest body) item tag)))
-     (t (values doc tag body)))))
+(defgeneric test-thunk-name (test)
+  (:method ((u unit-test))
+    (test-thunk-name (name u)))
+  (:method ((u symbol))
+    (symbol-munger:english->lisp-symbol
+     (list u 'test-thunk)
+     (symbol-package u))))
+
+(defmethod test-thunk ((u unit-test))
+  (compile-unit-test u)
+  (symbol-function (test-thunk-name u)))
+
+(defmethod %compile ((u unit-test))
+  (%log-around (#?"Compiling Test: ${ (name u) }" :level 0)
+    (compile (test-thunk-name u)
+             `(lambda (),(doc u)
+               (%log-around (#?"Running Test: ${ (name u) }" :level 1)
+                 ,@(code u))))))
+
 
 (defun test-name-error-report (test-name-error stream)
   "Write the test-name-error to the stream."
@@ -260,31 +259,45 @@ assertion.")
       name
       (error 'test-name-error :datum name)))
 
-(defmacro define-test (name &body body)
-  "Store the test in the test database."
-  (let ((qname (gensym "NAME-")))
-    (multiple-value-bind (doc tag code) (parse-body body)
-      `(let* ((,qname (valid-test-name ',name))
-              (doc (or ,doc (symbol-name ,qname)))
-              (package (symbol-package ,qname)))
-         (setf
-          ;; Unit test
-          (gethash ,qname (package-table package t))
-          (make-instance 'unit-test :doc doc :code ',code))
-         ;; Tags
-         (loop
-          for tag in ',tag do
-          (pushnew ,qname (gethash tag (package-tags package t))))
-         ;; Return the name of the test
-         ,qname))))
+(defmethod install-test ((u unit-test) &optional (package *package*))
+  (%compile u)
+  (with-package-tags (tags package t)
+    (iter (for tag in (tags u))
+      (push (name u) (gethash tag tags))))
+  (with-package-table (tests package t)
+    (setf (gethash (name u) tests) u)))
+
+(defgeneric uninstall-test (test)
+  (:method ((u symbol)
+            &aux (package (symbol-package u)))
+    (ignore-errors (fmakunbound u))
+    (ignore-errors (fmakunbound (test-thunk-name u)))
+    (with-package-table (tests package) (remhash u tests))
+    (with-package-tags (tags package)
+      (iter (for (tag tests) in tags)
+        (setf (gethash tag tags) (remove u tests)))))
+  (:method ((u unit-test))
+    (uninstall-test (name u))))
+
+
+(defmacro define-test (name (&rest tags) &body body)
+  `(let ((unit-test
+          (make-instance 'unit-test
+           :name ',name
+           :doc ,(when (stringp (first body)) (first body))
+           :tag '(,@tags)
+           :code '(,@body))))
+    (install-test unit-test)
+    (defun ,name ()
+      (%run-test unit-test))))
 
 ;;; Manage tests
 
 (defun list-tests (&optional (package *package*))
   "Return a list of the tests in package."
   (with-package-table (table package)
-    (loop for test-name being each hash-key in table
-          collect test-name)))
+    (loop for test being each hash-value in table
+          collect test)))
 
 (defun test-documentation (name &optional (package *package*))
   "Return the documentation for the test."
@@ -330,22 +343,6 @@ assertion.")
 
 ;;; Manage tags
 
-(defun %tests-from-all-tags (&optional (package *package*))
-  "Return all of the tests that have been tagged."
-  (with-package-tags (table package)
-    (loop for tests being each hash-value in table
-          nconc (copy-list tests) into all-tests
-          finally (return (delete-duplicates all-tests)))))
-
-(defun %tests-from-tags (tags &optional (package *package*))
-  "Return the tests associated with the tags."
-  (with-package-tags (table package)
-    (loop for tag in tags
-          as tests = (gethash tag table)
-          if (null tests) do (warn "No tests tagged with ~S." tag)
-          else nconc (copy-list tests) into all-tests
-          finally (return (delete-duplicates all-tests)))))
-
 (defun list-tags (&optional (package *package*))
   "Return a list of the tags in package."
   (with-package-tags (table package)
@@ -353,9 +350,12 @@ assertion.")
 
 (defun tagged-tests (&optional (tags :all) (package *package*))
   "Return a list of the tests associated with the tags."
-  (if (eq :all tags)
-      (%tests-from-all-tags package)
-      (%tests-from-tags tags package)))
+  (with-package-tags (table package)
+    (remove-duplicates
+     (iter (for tag in (case tags
+                         (:all (list-tags package))
+                         (t (alexandria:ensure-list tags))))
+       (appending (gethash tag table))))))
 
 (defun remove-tags (&optional (tags :all) (package *package*))
   "Remove individual tags or entire sets."
@@ -585,6 +585,15 @@ assertion.")
   "Return an instance of an output failure result."
   (%record-failure 'output-result form actual expected extras test))
 
+(define-condition assertion-pass (condition)
+  ((unit-test :accessor unit-test :initarg :unit-test :initform nil)
+   (assertion :accessor assertion :initarg :assertion :initform nil)))
+
+(define-condition assertion-fail (condition)
+  ((unit-test :accessor unit-test :initarg :unit-test :initform nil)
+   (assertion :accessor assertion :initarg :assertion :initform nil)
+   (failure :accessor failure :initarg :failure :initform nil)))
+
 (defun internal-assert
        (type form code-thunk expected-thunk extras test)
   "Perform the assertion and record the results."
@@ -592,84 +601,12 @@ assertion.")
          (expected (multiple-value-list (funcall expected-thunk)))
          (result (assert-result type test expected actual)))
     (if result
-        (incf *pass*)
-        (push
-         (record-failure
-          type form actual expected
-          (when extras (funcall extras)) test)
-         *fail*))
+        (signal 'assertion-pass :unit-test *unit-test* :assertion form)
+        (signal 'assertion-fail :unit-test *unit-test* :assertion form
+                :failure (record-failure type form actual expected
+                                         (when extras (funcall extras)) test)))
     ;; Return the result
     result))
-
-;;; Unit test results
-
-(defclass test-result ()
-  ((name
-    :type symbol
-    :initarg :name
-    :reader name)
-   (pass
-    :type fixnum
-    :initarg :pass
-    :reader pass)
-   (fail
-    :type list
-    :initarg :fail
-    :reader fail)
-   (exerr
-    :initarg :exerr
-    :reader exerr)
-   (run-time
-    :initarg :run-time
-    :reader run-time
-    :documentation
-    "Test run time measured in internal time units"))
-  (:default-initargs :exerr nil)
-  (:documentation
-   "Store the results of the unit test."))
-
-(defun print-summary (test-result &optional
-                      (stream *standard-output*))
-  "Print a summary of the test result."
-  (format stream "~&~A: ~S assertions passed, ~S failed"
-          (name test-result)
-          (pass test-result)
-          (length (fail test-result)))
-  (if (exerr test-result)
-      (format stream ", and an execution error.")
-      (write-char #\. stream))
-  (terpri stream)
-  (terpri stream))
-
-(defun run-code (code)
-  "Run the code to test the assertions."
-  (funcall (coerce `(lambda () ,@code) 'function)))
-
-(defun run-test-thunk (name code)
-  (let ((*pass* 0)
-        (*fail* ())
-        (start (get-internal-run-time)))
-    (handler-bind
-        ((error
-          (lambda (condition)
-            (if (use-debugger-p condition)
-                condition
-                (return-from run-test-thunk
-                  (make-instance
-                   'test-result
-                   :name name
-                   :pass *pass*
-                   :fail *fail*
-                   :run-time (- (get-internal-run-time) start)
-                   :exerr condition))))))
-      (run-code code))
-    ;; Return the result count
-    (make-instance
-     'test-result
-     :name name
-     :pass *pass*
-     :fail *fail*
-     :run-time (- (get-internal-run-time) start))))
 
 ;;; Test results database
 
@@ -742,8 +679,7 @@ assertion.")
     (when (or *print-summary* *print-failures* *print-errors*)
       (print-summary result))))
 
-(defun summarize-results (results &optional
-                          (stream *standard-output*))
+(defmethod print-summary ((results test-results-db) &optional (stream *test-stream*))
   "Print a summary of all results to the stream."
   (let ((pass (pass results))
         (fail (fail results)))
@@ -756,6 +692,15 @@ assertion.")
             (length (missing-tests results)))))
 
 ;;; Run the tests
+(define-condition missing-test (warning)
+  ((test-name :accessor test-name :initarg :test-name :initform nil))
+  (:documentation
+   "Signaled when a single test is finished."))
+
+(define-condition test-complete ()
+  ((run :accessor run :initarg :run :initform nil))
+  (:documentation
+   "Signaled when a single test is finished."))
 
 (define-condition test-run-complete ()
   ((results
@@ -765,52 +710,96 @@ assertion.")
   (:documentation
    "Signaled when a test run is finished."))
 
-(defun %run-all-thunks (&optional (package *package*))
-  "Run all of the test thunks in the package."
+(defun %package-tests (package)
   (with-package-table (table package)
-    (loop
-     with results = (make-instance 'test-results-db)
-     for test-name being each hash-key in table
-     using (hash-value unit-test)
-     if unit-test do
-     (record-result test-name (code unit-test) results)
-     else do
-     (push test-name (missing-tests results))
-     ;; Summarize and return the test results
-     finally
-     (when *signal-results*
-       (signal 'test-run-complete :results results))
-     (summarize-results results)
-     (return results))))
+    (iter (for (name test) in-hashtable table)
+      (collect test))))
 
-(defun %run-thunks (test-names &optional (package *package*))
-  "Run the list of test thunks in the package."
-  (with-package-table (table package)
-    (loop
-     with results = (make-instance 'test-results-db)
-     for test-name in test-names
-     as unit-test = (gethash test-name table)
-     if unit-test do
-     (record-result test-name (code unit-test) results)
-     else do
-     (push test-name (missing-tests results))
-     finally
-     (when *signal-results*
-       (signal 'test-run-complete :results results))
-     (summarize-results results)
-     (return results))))
+(defun %package-test (name &optional (package *package*))
+  (or (with-package-table (table (symbol-package name))
+        (gethash name table))
+      (with-package-table (table package)
+        (gethash name table))))
 
-(defun run-tests (&optional (test-names :all) (package *package*))
+(defun %get-tests (&key
+                   (tests :all)
+                   (tags nil)
+                   (package *package*))
+  (cond
+    ((eql :all tests) (%package-tests package))
+    ((eql :all tags) (tagged-tests))
+    (t
+     (iter (for name in (append (alexandria:ensure-list tests)
+                                (tagged-tests tags)))
+       (for test = (etypecase name
+                     (null nil)
+                     (unit-test name)
+                     (symbol (%package-test name))))
+       (if test
+           (collect test)
+           (warn 'missing-test :test-name test))))))
+
+(defun run-tests (&key
+                  (tests :all)
+                  (tags nil)
+                  (package *package*)
+                  &aux (results (make-instance 'test-results-db)))
   "Run the specified tests in package."
-  (reset-counters)
-  (if (eq :all test-names)
-      (%run-all-thunks package)
-      (%run-thunks test-names package)))
+  (handler-bind
+      ((missing-test (lambda (c) (push (test-name c) (missing-tests results)))))
+    (iter (for test in (%get-tests :tests tests :tags tags :package package))
+      (run-test test)
+      *most-recent-run*
+      ))
+  (signal 'test-run-complete :results results)
+  (summarize-results results)
+  results)
 
-(defun run-tags (&optional (tags :all) (package *package*))
-  "Run the tests associated with the specified tags in package."
-  (reset-counters)
-  (%run-thunks (tagged-tests tags package) package))
+(defvar *most-recent-run* nil)
+
+(defclass unit-test-run ()
+  ((unit-test :accessor unit-test :initarg :unit-test :initform nil)
+   (return-value :accessor return-value :initarg :return-value :initform nil)
+   (start-time :accessor start-time :initarg :start-time :initform (get-universal-time))
+   (end-time :accessor end-time :initarg :end-time :initform nil)
+   (errors :accessor errors :initarg :errors :initform nil)
+   (warnings :accessor warnings :initarg :warnings :initform nil)
+   (passed :accessor passed :initarg :passed :initform nil)
+   (failed :accessor failed :initarg :failed :initform nil)))
+
+(defmethod print-summary ((run unit-test-run) &optional (stream *test-stream*))
+  "Print a summary of the test result."
+  (format stream "~&~A: ~S assertions passed"
+          (name (unit-test run))
+          (length (pass run)))
+  (when (failed run)
+    (format stream ", ~S failed~%"
+            (length (failed run)))
+    (mapcar #'print-failures (failed run)))
+  (when (errors run)
+    (format stream ", ERROR: ~%    ~A~%    ~S" (errors run) (errors run)))
+  (format stream "~%~%"))
+
+(defgeneric run-test (test)
+  (:method ((n symbol)) (run-test (%get-tests :tests n)))
+  (:method ((u unit-test)
+            &aux (run (make-instance 'unit-test-run :unit-test u))
+            (*unit-test* u))
+    (setf *most-recent-run* run)
+    (unwind-protect
+         (handler-bind
+             ((assertion-pass (lambda (c) (push (assertion c) (passed run))))
+              (assertion-fail (lambda (c) (push (failure c) (failed run))))
+              (error (lambda (c) (push c (errors run))))
+              (warning (lambda (c) (push c (warnings run)))))
+           (%compile u)
+           ;; run the test code
+           (setf (return-value run)
+                 (funcall (test-thunk u))))
+      run
+      (setf (end-time run) (get-universal-time))
+      (signal 'test-complete :run run))
+    run))
 
 ;;; Print failures
 
