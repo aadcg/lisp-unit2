@@ -11,26 +11,26 @@
   "Output a single test, taking care to ensure the indentation level
 is the same before and after invocation."
   (pprint-logical-block (stream nil)
-    (format stream
-            "~:[ok~;not ok~] ~d ~s (~,2f s)"
-            (or (failed test-result)
+    (let ((*test-stream* stream))
+      (format stream
+              "~:[ok~;not ok~] ~d ~s (~,2f s)"
+              (or (failed test-result)
+                  (errors test-result))
+              i name
+              (run-time-s test-result))
+      (when (or (failed test-result)
                 (errors test-result))
-            i name
-            (run-time-s test-result))
-    (when (or (failed test-result)
-              (errors test-result))
-      ;; indent only takes affect after a newline, so force one
-      (format stream "~2I~:@_---~@:_")
-      (when (errors test-result)
-        (format stream "message: |ERROR~4I~_~A~s~2I~@:_"
-                (errors test-result)
-                (errors test-result)))
-      (when (failed test-result)
-        (format stream "message: ~d failed assertions~@:_"
-                (length (failed test-result))))
-      (format stream "..."))
-    ;; always reset to zero and force a newline
-    (format stream "~0I~@:_")))
+        ;; indent only takes affect after a newline, so force one
+        (format stream "~2I~@:_---~@:_")
+        (when (errors test-result)
+          (print-errors test-result))
+        (when (failed test-result)
+          (print-errors test-result)
+          (format stream "~d failed assertions~@:_" (length (failed test-result)))
+          (print-failures test-result ))
+        (format stream "~@:_..."))
+      ;; always reset to zero and force a newline
+      (format stream "~0I~@:_"))))
 
 (defun write-tap (test-results &optional (stream *standard-output*))
   "Write the test results to `stream` in TAP format. Returns the test

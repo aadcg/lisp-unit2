@@ -572,23 +572,7 @@
   (iter (for (name test-result) in-hashtable (table test-results-db))
     (collecting name)))
 
-(defmethod print-summary ((o test-results-db) &optional (stream *test-stream*))
-  "Print a summary of all results to the stream."
-  (let ((total (length (test-names o)))
-        (passed (length (passed-assertions o)))
-        (failed (length (failed-assertions o)))
-        (errors (length (errors o)))
-        (warnings (length (all-warnings o)))
-        (empty (length (empty o)))
-        (missing (length (missing o))))
-    (format stream "~&Test Summary (~D tests) ~%" total)
-    (format stream " | ~D assertions total~%" (+ passed failed))
-    (format stream " | ~D passed~%" passed)
-    (format stream " | ~D failed~%" failed)
-    (format stream " | ~D execution errors~%" errors)
-    (format stream " | ~D warnings~%" warnings)
-    (format stream " | ~D empty~%" empty)
-    (format stream " | ~D missing tests~2%" missing)))
+
 
 ;;; Run the tests
 (define-condition missing-test (warning)
@@ -670,40 +654,15 @@
             (all-tests
              (%get-tests :tests tests :tags tags :package package)))
     (%log #?"Running tests:${all-tests}" :level 0)
-    (handler-bind
-        ((missing-test (lambda (c) (push (test-name c) (missing results)))))
-      (iter (for test in all-tests)
-        ;; this calls the test fn so go to definition on the failing tests work
-        (record-result (funcall (name test)) results)))
-    (signal 'all-tests-complete :results results)
+    (unwind-protect
+         (handler-bind
+             ((missing-test (lambda (c) (push (test-name c) (missing results)))))
+           (iter (for test in all-tests)
+             ;; this calls the test fn so go to definition on the failing tests work
+             (record-result (funcall (name test)) results)))
+      (setf (end-time results) (get-universal-time))
+      (signal 'all-tests-complete :results results))
     results))
-
-
-(defun with-summary-context (body-fn)
-  (handler-bind
-      ((test-start (lambda (c) (format *test-stream* "~&Starting: ~A" (name (unit-test c)))))
-       (all-tests-complete (lambda (c) (print-summary (results c))))
-       (test-complete (lambda (c) (print-summary (result c)))))
-    (funcall body-fn)))
-
-(defmacro with-summary (() &body body)
-  `(with-summary-context (lambda () ,@body)))
-
-
-(defmethod print-summary ((run test-result) &optional (stream *test-stream*))
-  "Print a summary of the test result."
-  (format stream "~& ~A - ~A (~ds) : ~S assertions passed"
-          (name (unit-test run)) (status run)
-          (- (end-time run) (start-time run))
-          (length (passed run)))
-  (when (failed run)
-    (format stream ", ~S failed~%"
-            (length (failed run)))
-    (print-failures run))
-  (when (errors run)
-    (print-errors run))
-  (format stream "~%~%")
-  run)
 
 (defun %run-test
     (u &aux
@@ -740,84 +699,6 @@
   (:method ((u unit-test))
     (run-test (name u))))
 
-;;; Print failures
-
-(defgeneric print-failures (result &optional stream)
-  (:documentation
-   "Report the results of the failed assertion."))
-
-(defmethod print-failures :around ((result failure-result) &optional
-                                   (stream *test-stream*))
-  "Failure header and footer output."
-  (format stream "~& | Failed Form: ~S" (form result))
-  (call-next-method)
-  (when (extras result)
-    (format stream "~{~& | ~S => ~S~}~%" (extras result)))
-  (format stream "~& |~%"))
-
-(defmethod print-failures ((result failure-result) &optional
-                           (stream *test-stream*))
-  (format stream "~& | Expected ~{~S~^; ~} " (expected result))
-  (format stream "~<~% | ~:;but saw ~{~S~^; ~}~>" (actual result)))
-
-(defmethod print-failures ((result error-result) &optional
-                           (stream *test-stream*))
-  (format stream "~& | ~@[Should have signalled ~{~S~^; ~} but saw~]"
-          (expected result))
-  (format stream " ~{~S~^; ~}" (actual result)))
-
-(defmethod print-failures ((result macro-result) &optional
-                           (stream *test-stream*))
-  (format stream "~& | Should have expanded to ~{~S~^; ~} "
-          (expected result))
-  (format stream "~<~%~:;but saw ~{~S~^; ~}~>" (actual result)))
-
-(defmethod print-failures ((result output-result) &optional
-                           (stream *test-stream*))
-  (format stream "~& | Should have printed ~{~S~^; ~} "
-          (expected result))
-  (format stream "~<~%~:;but saw ~{~S~^; ~}~>"
-          (actual result)))
-
-(defmethod print-failures ((result test-result) &optional (stream *test-stream*))
-  "Print the failed assertions in the unit test."
-  (loop for fail in (failed result) do
-           (print-failures fail stream)))
-
-(defmethod print-failures ((results test-results-db) &optional
-                           (stream *test-stream*))
-  "Print all of the failure tests."
-  (loop with db = (database results)
-        for test in (failed-tests results)
-        as result = (gethash test db)
-        do
-        (print-failures result stream)
-        (print-summary result stream)))
-
-;;; Print errors
-
-(defgeneric print-errors (result &optional stream)
-  (:documentation
-   "Print the error condition."))
-
-(defmethod print-errors ((result test-result) &optional
-                         (stream *test-stream*))
-  "Print the error condition."
-  (let ((exerr (errors result))
-        (*print-escape* nil))
-    (when exerr
-      (format stream "~& | Execution error:~% | ~W" exerr)
-      (format stream "~& |~%"))))
-
-(defmethod print-errors ((results test-results-db) &optional
-                         (stream *test-stream*))
-  "Print all of the error tests."
-  (loop with db = (database results)
-        for test in (error-tests results)
-        as result = (gethash test db)
-        do
-        (print-errors result stream)
-        (print-summary result stream)))
 
 ;;; Useful equality predicates for tests
 
