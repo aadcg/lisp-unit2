@@ -29,11 +29,13 @@
   :version "0.9.2"
   :author "Thomas M. Hermann <thomas.m.hermann@odonata-research.com>"
   :license "MIT"
+  :serial t
   :components
-  ((:file "lisp-unit")
+  ((:file "packages")
+   (:file "lisp-unit")
    (:module extensions
     :depends-on ("lisp-unit")
     :components ((:file "rational")
                  (:file "floating-point")
                  (:file "test-anything-protocol"))))
-  :depends-on (:alexandria :cl-interpol))
+  :depends-on (:alexandria :cl-interpol :iterate :symbol-munger))

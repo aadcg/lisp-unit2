@@ -1,105 +1,10 @@
 ;;;-*- Mode: Lisp; Syntax: ANSI-Common-Lisp -*-
-
-#|
-Copyright (c) 2004-2005 Christopher K. Riesbeck
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the "Software"),
-to deal in the Software without restriction, including without limitation
-the rights to use, copy, modify, merge, publish, distribute, sublicense,
-and/or sell copies of the Software, and to permit persons to whom the
-Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included
-in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
-
-
-How to use
-----------
-
-1. Read the documentation at:
-   https://github.com/OdonataResearchLLC/lisp-unit/wiki
-
-2. Make a file of DEFINE-TEST's. See exercise-tests.lisp for many
-examples. If you want, start your test file with (REMOVE-TESTS :ALL)
-to clear any previously defined tests.
-
-3. Load this file.
-
-4. (use-package :lisp-unit)
-
-5. Load your code file and your file of tests.
-
-6. Test your code with (RUN-TESTS '(test-name1 test-name2 ...)) or
-simply (RUN-TESTS :ALL) to run all defined tests.
-
-A summary of how many tests passed and failed will be printed.
-
-NOTE: Nothing is compiled until RUN-TESTS is expanded. Redefining
-functions or even macros does not require reloading any tests.
-
-|#
-
-;;; Packages
-
-(in-package :cl-user)
-
-(defpackage :lisp-unit
-  (:use :common-lisp :iter)
-  ;; Print parameters
-  (:export :*print-summary*
-           :*print-failures*
-           :*print-errors*)
-  ;; Forms for assertions
-  (:export :assert-eq
-           :assert-eql
-           :assert-equal
-           :assert-equalp
-           :assert-equality
-           :assert-prints
-           :assert-expands
-           :assert-true
-           :assert-false
-           :assert-error)
-  ;; Functions for managing tests
-  (:export :define-test
-           :list-tests
-           :test-code
-           :test-documentation
-           :remove-tests
-           :run-tests
-           :use-debugger)
-  ;; Functions for managing tags
-  (:export :list-tags
-           :tagged-tests
-           :remove-tags
-           :run-tags)
-  ;; Functions for reporting test results
-  (:export :test-names
-           :failed-tests
-           :error-tests
-           :missing-tests
-           :print-failures
-           :print-errors
-           :summarize-results)
-  ;; Functions for extensibility via signals
-  (:export :test-run-complete
-           :results)
-  ;; Utility predicates
-  (:export :logically-equal :set-equal))
+#| SEE COPYRIGHT / README at BOTTOM |#
 
 (in-package :lisp-unit)
 (cl-interpol:enable-interpol-syntax)
 
-(defvar *log-level* 1)
+(defparameter *log-level* 2)
 
 (defun %ts (&optional (time (get-universal-time)))
   "returns a date as {y}{mon}{d}-{h}{min}{s}, defaults to get-universal-time
@@ -111,31 +16,17 @@ functions or even macros does not require reloading any tests.
 
 (defun %log (message &key (level 0))
   (when (<= *log-level* level)
-    (format *test-log-stream* message)))
+    (format *test-log-stream* "~A ~A~%" (%ts) message)))
 
-(defmacro %log-around ((message &key (level 0))&body body)
+(defmacro %log-around ((message &key (start-level 1) (end-level 0)) &body body)
   `(unwind-protect
     (progn
-      (%log #?"${ (%ts) } START ${,message}" :level ,level)
+      (%log #?" START ${,message}" :level ,start-level)
       ,@body)
-    (%log #?"${ (%ts) }   END ${,message}" :level ,level)))
+    (%log #?"   END ${,message}" :level ,end-level)))
 
 (defvar *test-stream* *standard-output*)
 (defvar *test-log-stream* *test-stream*)
-
-;;; Global counters
-
-
-;;; Global options
-
-(defparameter *print-summary* t
-  "Print a summary of the pass, fail, and error count if non-nil.")
-
-(defparameter *print-failures* t
-  "Print failure messages if non-NIL.")
-
-(defparameter *print-errors* t
-  "Print error messages if non-NIL.")
 
 ;;; Global unit test database
 
@@ -160,7 +51,8 @@ functions or even macros does not require reloading any tests.
      ((gethash packobj *test-db*))
      (create
       (setf (gethash packobj *test-db*) (make-hash-table)))
-     (t (warn 'null-tests-warning :name (package-name package))))))
+     ;;(t (warn 'null-tests-warning :name (package-name package)))
+     )))
 
 (defmacro with-package-table ((table
                                &optional (package *package*) create)
@@ -195,7 +87,8 @@ functions or even macros does not require reloading any tests.
      ((gethash packobj *tag-db*))
      (create
       (setf (gethash packobj *tag-db*) (make-hash-table)))
-     (t (warn 'null-tags-warning :name (package-name package))))))
+     ;; (t (warn 'null-tags-warning :name (package-name package)))
+     )))
 
 (defmacro with-package-tags ((table
                               &optional (package *package*) create)
@@ -211,7 +104,18 @@ functions or even macros does not require reloading any tests.
 (defvar *unit-test* nil
   "The currently executing unit test")
 
-(defclass unit-test ()
+(defclass unit-test-control-mixin ()
+  ((context-provider
+    :accessor context-provider :initarg :context-provider :initform nil
+    :documentation "A function that accepts a test thunk and executes
+     with a given context (eg: database-connects, html-collectors,
+     http-context etc)")
+   (data :accessor data :initarg :data :initform nil
+         :documentation "Shared data so the context"))
+  (:documentation "Helps commonize test construction by providing a
+    shared data and dynamic context"))
+
+(defclass unit-test (unit-test-control-mixin)
   ((name :accessor name :initarg :name :initform nil)
    (doc :accessor doc :initarg :doc :initform nil)
    (code :accessor code :initarg :code :initform nil
@@ -219,6 +123,13 @@ functions or even macros does not require reloading any tests.
    (tags :accessor tags :initarg :tags :initform nil))
   (:documentation
    "Organize the unit test documentation and code."))
+
+(defmethod print-object ((o unit-test) s)
+  "Print the auto-print-items for this instance."
+  (print-unreadable-object (o s :type t :identity t)
+    (format s "~A:~A "
+            (package-name (symbol-package (name o)))
+            (name o))))
 
 (defgeneric test-thunk-name (test)
   (:method ((u unit-test))
@@ -229,15 +140,13 @@ functions or even macros does not require reloading any tests.
      (symbol-package u))))
 
 (defmethod test-thunk ((u unit-test))
-  (compile-unit-test u)
+  (%compile u)
   (symbol-function (test-thunk-name u)))
 
 (defmethod %compile ((u unit-test))
-  (%log-around (#?"Compiling Test: ${ (name u) }" :level 0)
+  (%log-around (#?"Compiling Test: ${ (name u) }" :start-level 0)
     (compile (test-thunk-name u)
-             `(lambda (),(doc u)
-               (%log-around (#?"Running Test: ${ (name u) }" :level 1)
-                 ,@(code u))))))
+             `(lambda (),(doc u) ,@(code u)))))
 
 
 (defun test-name-error-report (test-name-error stream)
@@ -259,10 +168,10 @@ functions or even macros does not require reloading any tests.
       name
       (error 'test-name-error :datum name)))
 
-(defmethod install-test ((u unit-test) &optional (package *package*))
+(defmethod install-test ((u unit-test) &aux (package (symbol-package (name u))))
   (%compile u)
   (with-package-tags (tags package t)
-    (iter (for tag in (tags u))
+    (iter (for tag in (alexandria:ensure-list (tags u)))
       (push (name u) (gethash tag tags))))
   (with-package-table (tests package t)
     (setf (gethash (name u) tests) u)))
@@ -270,26 +179,29 @@ functions or even macros does not require reloading any tests.
 (defgeneric uninstall-test (test)
   (:method ((u symbol)
             &aux (package (symbol-package u)))
-    (ignore-errors (fmakunbound u))
-    (ignore-errors (fmakunbound (test-thunk-name u)))
+    (%log #?"Uninstalling test ${u}")
     (with-package-table (tests package) (remhash u tests))
     (with-package-tags (tags package)
-      (iter (for (tag tests) in tags)
-        (setf (gethash tag tags) (remove u tests)))))
+      (iter (for (tag tests) in-hashtable tags)
+        (setf (gethash tag tags) (remove u tests))))
+    (ignore-errors (fmakunbound u))
+    (ignore-errors (fmakunbound (test-thunk-name u))))
   (:method ((u unit-test))
     (uninstall-test (name u))))
 
 
-(defmacro define-test (name (&rest tags) &body body)
+(defmacro define-test (name (&key tags context-provider) &body body)
   `(let ((unit-test
           (make-instance 'unit-test
            :name ',name
            :doc ,(when (stringp (first body)) (first body))
-           :tag '(,@tags)
-           :code '(,@body))))
+           :tags ,tags
+           :code '(,@body)
+           :context-provider ,context-provider
+           )))
     (install-test unit-test)
     (defun ,name ()
-      (%run-test unit-test))))
+      (run-test unit-test))))
 
 ;;; Manage tests
 
@@ -317,29 +229,11 @@ functions or even macros does not require reloading any tests.
                 name (package-name package))
           (code unit-test)))))
 
-(defun remove-tests (&optional (names :all) (package *package*))
+(defun remove-tests (&optional (tests :all) (tags nil) (package *package*))
   "Remove individual tests or entire sets."
-  (if (eq :all names)
-      (if (null package)
-          (clrhash *test-db*)
-          (progn
-            (remhash (find-package package) *test-db*)
-            (remhash (find-package package) *tag-db*)))
-      (progn
-        ;; Remove tests
-        (with-package-table (table package)
-          (loop for name in names
-                unless (remhash name table) do
-                (warn "No test ~A in package ~A to remove."
-                      name (package-name package))))
-        ;; Remove tests from tags
-        (with-package-tags (tags package)
-          (loop for tag being each hash-key in tags
-                using (hash-value tagged-tests)
-                do
-                (setf
-                 (gethash tag tags)
-                 (set-difference tagged-tests names)))))))
+  (let ((tests (%get-tests :tests tests :tags tags :package package)))
+    (iter (for test in tests)
+      (uninstall-test test))))
 
 ;;; Manage tags
 
@@ -456,25 +350,12 @@ functions or even macros does not require reloading any tests.
    "Record the details of the failure."))
 
 (defclass failure-result ()
-  ((form
-    :initarg :form
-    :reader form)
-   (actual
-    :type list
-    :initarg :actual
-    :reader actual)
-   (expected
-    :type list
-    :initarg :expected
-    :reader expected)
-   (extras
-    :type list
-    :initarg :extras
-    :reader extras)
-   (test
-    :type function
-    :initarg :test
-    :reader test))
+  ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
+   (form :accessor form :initarg :form :initform nil)
+   (actual :accessor actual :initarg :actual :initform nil)
+   (expected :accessor expected :initarg :expected :initform nil)
+   (extras :accessor extras :initarg :extras :initform nil)
+   (test :accessor test :initarg :test :initform nil))
   (:documentation
    "Failure details of the assertion."))
 
@@ -610,99 +491,121 @@ functions or even macros does not require reloading any tests.
 
 ;;; Test results database
 
-(defclass test-results-db ()
-  ((database
-    :type hash-table
-    :initform (make-hash-table :test #'eq)
-    :reader database)
-   (pass
-    :type fixnum
-    :initform 0
-    :accessor pass)
-   (fail
-    :type fixnum
-    :initform 0
-    :accessor fail)
-   (exerr
-    :type fixnum
-    :initform 0
-    :accessor exerr)
-   (failed-tests
-    :type list
-    :initform ()
-    :accessor failed-tests)
-   (error-tests
-    :type list
-    :initform ()
-    :accessor error-tests)
-   (missing-tests
-    :type list
-    :initform ()
-    :accessor missing-tests))
+(defclass test-results-mixin ()
+  ((start-time :accessor start-time :initarg :start-time :initform (get-universal-time))
+   (end-time :accessor end-time :initarg :end-time :initform nil)
+   (passed :accessor passed :initarg :passed :initform nil)
+   (failed :accessor failed :initarg :failed :initform nil)
+   (errors :accessor errors :initarg :errors :initform nil)
+   (missing :accessor missing :initarg :missing :initform nil)))
+
+(defclass test-results-db (test-results-mixin)
+  ((table :accessor table :initarg :table :initform (make-hash-table))
+   (empty :accessor empty :initarg :empty :initform nil))
   (:documentation
    "Store the results of the tests for further evaluation."))
 
-(defmethod print-object ((object test-results-db) stream)
+(defclass test-result (test-results-mixin)
+  ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
+   (return-value :accessor return-value :initarg :return-value :initform nil)
+   (start-time :accessor start-time :initarg :start-time :initform (get-universal-time))
+   (end-time :accessor end-time :initarg :end-time :initform nil)
+   (errors :accessor errors :initarg :errors :initform nil)
+   (warnings :accessor warnings :initarg :warnings :initform nil)
+   (passed :accessor passed :initarg :passed :initform nil)
+   (failed :accessor failed :initarg :failed :initform nil)))
+
+(defmethod print-object ((o test-result) s
+                         &aux (name (ignore-errors (name (unit-test o)))))
+  "Print the auto-print-items for this instance."
+  (print-unreadable-object (o s :type t :identity t)
+    (format s "~A:~A " (package-name (symbol-package name)) name)))
+
+(defmethod %has? (status thing
+                  &aux (n (length (funcall status thing))))
+  (when (< 0 n) n))
+
+(defmethod status ((u test-result))
+  (cond
+    ((%has? 'errors u) 'errors)
+    ((%has? 'failed u) 'failed)
+    ((%has? 'warnings u) 'warnings)
+    ((%has? 'passed u) 'passed)
+    (t 'empty)))
+
+(defgeneric passed-assertions (it)
+  (:method ((u test-result))
+    (passed u))
+  (:method ((u test-results-db))
+    (iter (for (name test-result) in-hashtable (table u))
+      (appending (passed-assertions test-result)))))
+
+(defgeneric failed-assertions (it)
+  (:method ((u test-result))
+    (failed u))
+  (:method ((u test-results-db))
+    (iter (for (name test-result) in-hashtable (table u))
+      (appending (failed-assertions test-result)))))
+
+(defgeneric all-warnings (it)
+  (:method ((u test-result))
+    (warnings u))
+  (:method ((u test-results-db))
+    (iter (for (name test-result) in-hashtable (table u))
+      (appending (warnings test-result)))))
+
+(defmethod print-object ((o test-results-db) stream)
   "Print the summary counts with the object."
-  (let ((pass (pass object))
-        (fail (fail object))
-        (exerr (exerr object)))
-    (format
-     stream "#<~A Total(~D) Passed(~D) Failed(~D) Errors(~D)>~%"
-     (class-name (class-of object))
-     (+ pass fail) pass fail exerr)))
+  (print-unreadable-object (o stream :type t :identity t)
+    (let ((total (length (test-names o)))
+          (passed (length (passed-assertions o)))
+          (failed (length (failed-assertions o)))
+          (errors (length (errors o)))
+          (warnings (length (all-warnings o))))
+      (format stream "Tests:(~D) Passed:(~D) Failed:(~D) Errors:(~D) Warnings:(~D)"
+              total passed failed errors warnings))))
 
 (defun test-names (test-results-db)
   "Return a list of the test names in the database."
-  (loop for name being each hash-key in (database test-results-db)
-        collect name))
+  (iter (for (name test-result) in-hashtable (table test-results-db))
+    (collecting name)))
 
-(defun record-result (test-name code results)
-  "Run the test code and record the result."
-  (let ((result (run-test-thunk test-name code)))
-    ;; Store the result
-    (setf (gethash test-name (database results)) result)
-    ;; Count passed tests
-    (when (plusp (pass result))
-      (incf (pass results) (pass result)))
-    ;; Count failed tests and record the name
-    (when (fail result)
-      (incf (fail results) (length (fail result)))
-      (push test-name (failed-tests results)))
-    ;; Count errors and record the name
-    (when (exerr result)
-      (incf (exerr results))
-      (push test-name (error-tests results)))
-    ;; Running output
-    (when *print-failures* (print-failures result))
-    (when *print-errors* (print-errors result))
-    (when (or *print-summary* *print-failures* *print-errors*)
-      (print-summary result))))
-
-(defmethod print-summary ((results test-results-db) &optional (stream *test-stream*))
+(defmethod print-summary ((o test-results-db) &optional (stream *test-stream*))
   "Print a summary of all results to the stream."
-  (let ((pass (pass results))
-        (fail (fail results)))
-    (format stream "~&Unit Test Summary~%")
-    (format stream " | ~D assertions total~%" (+ pass fail))
-    (format stream " | ~D passed~%" pass)
-    (format stream " | ~D failed~%" fail)
-    (format stream " | ~D execution errors~%" (exerr results))
-    (format stream " | ~D missing tests~2%"
-            (length (missing-tests results)))))
+  (let ((total (length (test-names o)))
+        (passed (length (passed-assertions o)))
+        (failed (length (failed-assertions o)))
+        (errors (length (errors o)))
+        (warnings (length (all-warnings o)))
+        (empty (length (empty o)))
+        (missing (length (missing o))))
+    (format stream "~&Test Summary (~D tests) ~%" total)
+    (format stream " | ~D assertions total~%" (+ passed failed))
+    (format stream " | ~D passed~%" passed)
+    (format stream " | ~D failed~%" failed)
+    (format stream " | ~D execution errors~%" errors)
+    (format stream " | ~D warnings~%" warnings)
+    (format stream " | ~D empty~%" empty)
+    (format stream " | ~D missing tests~2%" missing)))
 
 ;;; Run the tests
 (define-condition missing-test (warning)
   ((test-name :accessor test-name :initarg :test-name :initform nil))
-  (:documentation
-   "Signaled when a single test is finished."))
+  (:documentation "Signaled when a single test is finished.")
+  (:report
+   (lambda (c s)
+     (format s "Warning MISSING-TEST: ~A" (test-name c)))))
+
+(define-condition test-start ()
+  ((unit-test :accessor unit-test :initarg :unit-test :initform nil))
+  (:documentation "Signaled when a single test starts."))
 
 (define-condition test-complete ()
-  ((run :accessor run :initarg :run :initform nil))
+  ((result :accessor result :initarg :result :initform nil))
   (:documentation
    "Signaled when a single test is finished."))
 
-(define-condition test-run-complete ()
+(define-condition all-tests-complete ()
   ((results
     :type 'test-results-db
     :initarg :results
@@ -721,85 +624,108 @@ functions or even macros does not require reloading any tests.
       (with-package-table (table package)
         (gethash name table))))
 
-(defun %get-tests (&key
-                   (tests :all)
-                   (tags nil)
-                   (package *package*))
-  (cond
-    ((eql :all tests) (%package-tests package))
-    ((eql :all tags) (tagged-tests))
-    (t
-     (iter (for name in (append (alexandria:ensure-list tests)
-                                (tagged-tests tags)))
-       (for test = (etypecase name
-                     (null nil)
-                     (unit-test name)
-                     (symbol (%package-test name))))
-       (if test
-           (collect test)
-           (warn 'missing-test :test-name test))))))
+(defun %get-tests (&key tests tags (package *package*))
+  (%log-around (#?"%get-tests:${tests} tags:${tags} package:${package}"
+                :start-level 0)
+    (cond
+      ((and (null tests) (null tags))
+       (%package-tests package))
+      (t
+       (iter (for name in (append (alexandria:ensure-list tests)
+                                  (tagged-tests tags)))
+         (for test = (etypecase name
+                       (null nil)
+                       (unit-test name)
+                       (symbol (%package-test name))))
+         (if test
+             (collect test)
+             (warn 'missing-test :test-name test)))))))
 
-(defun run-tests (&key
-                  (tests :all)
-                  (tags nil)
-                  (package *package*)
-                  &aux (results (make-instance 'test-results-db)))
-  "Run the specified tests in package."
+(defmethod record-result ((run test-result) (db test-results-db)
+                          &aux (status (status run)))
+  (setf (gethash (name (unit-test run))
+                 (table db))
+        run)
+  (funcall (fdefinition `(setf ,status))
+           (cons run (funcall status db))
+           db))
+
+(defvar *most-recent-result* nil)
+
+(defgeneric run-tests (&key tests tags package)
+  (:documentation
+   "Run the specified tests.
+
+   We run all the listed tests, and all tests tagged with tags.  If both test
+   and tags are nil (the default), then we run all tests in
+   package (defaulting to *package*)
+  ")
+  (:method :around (&key tests tags (package *package*))
+    (%log-around (#?"Running tests:${tests} tags:${tags} package:${package}")
+      (call-next-method)))
+  (:method (&key tests tags (package *package*)
+            &aux (results (make-instance 'test-results-db))
+            (all-tests
+             (%get-tests :tests tests :tags tags :package package)))
+    (%log #?"Running tests:${all-tests}" :level 0)
+    (handler-bind
+        ((missing-test (lambda (c) (push (test-name c) (missing results)))))
+      (iter (for test in all-tests)
+        (record-result (run-test test) results)))
+    (signal 'all-tests-complete :results results)
+    results))
+
+
+(defun %with-summary (body-fn)
   (handler-bind
-      ((missing-test (lambda (c) (push (test-name c) (missing-tests results)))))
-    (iter (for test in (%get-tests :tests tests :tags tags :package package))
-      (run-test test)
-      *most-recent-run*
-      ))
-  (signal 'test-run-complete :results results)
-  (summarize-results results)
-  results)
+      ((all-tests-complete (lambda (c) (print-summary (results c))))
+       (test-complete (lambda (c) (print-summary (result c)))))
+    (funcall body-fn)))
 
-(defvar *most-recent-run* nil)
+(defmacro with-summary (() &body body)
+  `(%with-summary (lambda () ,@body)))
 
-(defclass unit-test-run ()
-  ((unit-test :accessor unit-test :initarg :unit-test :initform nil)
-   (return-value :accessor return-value :initarg :return-value :initform nil)
-   (start-time :accessor start-time :initarg :start-time :initform (get-universal-time))
-   (end-time :accessor end-time :initarg :end-time :initform nil)
-   (errors :accessor errors :initarg :errors :initform nil)
-   (warnings :accessor warnings :initarg :warnings :initform nil)
-   (passed :accessor passed :initarg :passed :initform nil)
-   (failed :accessor failed :initarg :failed :initform nil)))
 
-(defmethod print-summary ((run unit-test-run) &optional (stream *test-stream*))
+(defmethod print-summary ((run test-result) &optional (stream *test-stream*))
   "Print a summary of the test result."
-  (format stream "~&~A: ~S assertions passed"
-          (name (unit-test run))
-          (length (pass run)))
+  (format stream "~& ~A - ~A (~ds) : ~S assertions passed"
+          (name (unit-test run)) (status run)
+          (- (end-time run) (start-time run))
+          (length (passed run)))
   (when (failed run)
     (format stream ", ~S failed~%"
             (length (failed run)))
-    (mapcar #'print-failures (failed run)))
+    (print-failures run))
   (when (errors run)
-    (format stream ", ERROR: ~%    ~A~%    ~S" (errors run) (errors run)))
-  (format stream "~%~%"))
+    (print-errors run))
+  (format stream "~%~%")
+  run)
 
 (defgeneric run-test (test)
-  (:method ((n symbol)) (run-test (%get-tests :tests n)))
+  (:method ((n symbol)) (run-test (first (%get-tests :tests n))))
+  (:method :around ((u unit-test))
+    (%log-around (#?"Running Test:${(name u)}")
+      (call-next-method)))
   (:method ((u unit-test)
-            &aux (run (make-instance 'unit-test-run :unit-test u))
+            &aux (result (setf *most-recent-run*
+                               (make-instance 'test-result :unit-test u)))
             (*unit-test* u))
-    (setf *most-recent-run* run)
+    ;; todo: clear context provider? so that it must be set via signal?
+    (signal 'test-start :unit-test u)
     (unwind-protect
          (handler-bind
-             ((assertion-pass (lambda (c) (push (assertion c) (passed run))))
-              (assertion-fail (lambda (c) (push (failure c) (failed run))))
-              (error (lambda (c) (push c (errors run))))
-              (warning (lambda (c) (push c (warnings run)))))
-           (%compile u)
+             ((assertion-pass (lambda (c) (push (assertion c) (passed result))))
+              (assertion-fail (lambda (c) (push (failure c) (failed result))))
+              (error (lambda (c) (push c (errors result))))
+              (warning (lambda (c) (push c (warnings result)))))
            ;; run the test code
-           (setf (return-value run)
-                 (funcall (test-thunk u))))
-      run
-      (setf (end-time run) (get-universal-time))
-      (signal 'test-complete :run run))
-    run))
+           (setf (return-value result)
+                 (if (context-provider u)
+                     (funcall (context-provider u) (test-thunk u))
+                     (funcall (test-thunk u)))))
+      (setf (end-time result) (get-universal-time))
+      (signal 'test-complete :result result))
+    result))
 
 ;;; Print failures
 
@@ -808,7 +734,7 @@ functions or even macros does not require reloading any tests.
    "Report the results of the failed assertion."))
 
 (defmethod print-failures :around ((result failure-result) &optional
-                                   (stream *standard-output*))
+                                   (stream *test-stream*))
   "Failure header and footer output."
   (format stream "~& | Failed Form: ~S" (form result))
   (call-next-method)
@@ -817,37 +743,36 @@ functions or even macros does not require reloading any tests.
   (format stream "~& |~%"))
 
 (defmethod print-failures ((result failure-result) &optional
-                           (stream *standard-output*))
+                           (stream *test-stream*))
   (format stream "~& | Expected ~{~S~^; ~} " (expected result))
   (format stream "~<~% | ~:;but saw ~{~S~^; ~}~>" (actual result)))
 
 (defmethod print-failures ((result error-result) &optional
-                           (stream *standard-output*))
+                           (stream *test-stream*))
   (format stream "~& | ~@[Should have signalled ~{~S~^; ~} but saw~]"
           (expected result))
   (format stream " ~{~S~^; ~}" (actual result)))
 
 (defmethod print-failures ((result macro-result) &optional
-                           (stream *standard-output*))
+                           (stream *test-stream*))
   (format stream "~& | Should have expanded to ~{~S~^; ~} "
           (expected result))
   (format stream "~<~%~:;but saw ~{~S~^; ~}~>" (actual result)))
 
 (defmethod print-failures ((result output-result) &optional
-                           (stream *standard-output*))
+                           (stream *test-stream*))
   (format stream "~& | Should have printed ~{~S~^; ~} "
           (expected result))
   (format stream "~<~%~:;but saw ~{~S~^; ~}~>"
           (actual result)))
 
-(defmethod print-failures ((result test-result) &optional
-                           (stream *standard-output*))
+(defmethod print-failures ((result test-result) &optional (stream *test-stream*))
   "Print the failed assertions in the unit test."
-  (loop for fail in (fail result) do
-        (print-failures fail stream)))
+  (loop for fail in (failed result) do
+           (print-failures fail stream)))
 
 (defmethod print-failures ((results test-results-db) &optional
-                           (stream *standard-output*))
+                           (stream *test-stream*))
   "Print all of the failure tests."
   (loop with db = (database results)
         for test in (failed-tests results)
@@ -863,16 +788,16 @@ functions or even macros does not require reloading any tests.
    "Print the error condition."))
 
 (defmethod print-errors ((result test-result) &optional
-                         (stream *standard-output*))
+                         (stream *test-stream*))
   "Print the error condition."
-  (let ((exerr (exerr result))
+  (let ((exerr (errors result))
         (*print-escape* nil))
     (when exerr
       (format stream "~& | Execution error:~% | ~W" exerr)
       (format stream "~& |~%"))))
 
 (defmethod print-errors ((results test-results-db) &optional
-                         (stream *standard-output*))
+                         (stream *test-stream*))
   "Print all of the error tests."
   (loop with db = (database results)
         for test in (error-tests results)
@@ -898,3 +823,53 @@ vice versa."
    (apply #'subsetp list2 list1 initargs)))
 
 (pushnew :lisp-unit common-lisp:*features*)
+
+
+#|
+Copyright (c) 2004-2005 Christopher K. Riesbeck
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+
+How to use
+----------
+
+1. Read the documentation at:
+   https://github.com/OdonataResearchLLC/lisp-unit/wiki
+
+2. Make a file of DEFINE-TEST's. See exercise-tests.lisp for many
+examples. If you want, start your test file with (REMOVE-TESTS :ALL)
+to clear any previously defined tests.
+
+3. Load this file.
+
+4. (use-package :lisp-unit)
+
+5. Load your code file and your file of tests.
+
+6. Test your code with (RUN-TESTS '(test-name1 test-name2 ...)) or
+simply (RUN-TESTS :ALL) to run all defined tests.
+
+A summary of how many tests passed and failed will be printed.
+
+NOTE: Things are compiled on definition and also on every run of the test
+is expanded. Redefining functions or even macros does not require
+reloading any tests.
+
+|#
