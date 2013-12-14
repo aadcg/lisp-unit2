@@ -200,8 +200,8 @@
            :context-provider ,context-provider
            )))
     (install-test unit-test)
-    (defun ,name ()
-      (run-test unit-test))))
+    (declaim (notinline ,name))
+    (defun ,name () (%run-test unit-test))))
 
 ;;; Manage tests
 
@@ -497,23 +497,25 @@
    (passed :accessor passed :initarg :passed :initform nil)
    (failed :accessor failed :initarg :failed :initform nil)
    (errors :accessor errors :initarg :errors :initform nil)
-   (missing :accessor missing :initarg :missing :initform nil)))
+   (missing :accessor missing :initarg :missing :initform nil)
+   (warnings :accessor warnings :initarg :warnings :initform nil)
+   (empty :accessor empty :initarg :empty :initform nil)))
+
+(defgeneric run-time (it)
+  (:method ((o test-results-mixin))
+    (or
+     (ignore-errors
+      (- (end-time o) (start-time o)))
+     -1)))
 
 (defclass test-results-db (test-results-mixin)
-  ((table :accessor table :initarg :table :initform (make-hash-table))
-   (empty :accessor empty :initarg :empty :initform nil))
+  ((table :accessor table :initarg :table :initform (make-hash-table)))
   (:documentation
    "Store the results of the tests for further evaluation."))
 
 (defclass test-result (test-results-mixin)
   ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
-   (return-value :accessor return-value :initarg :return-value :initform nil)
-   (start-time :accessor start-time :initarg :start-time :initform (get-universal-time))
-   (end-time :accessor end-time :initarg :end-time :initform nil)
-   (errors :accessor errors :initarg :errors :initform nil)
-   (warnings :accessor warnings :initarg :warnings :initform nil)
-   (passed :accessor passed :initarg :passed :initform nil)
-   (failed :accessor failed :initarg :failed :initform nil)))
+   (return-value :accessor return-value :initarg :return-value :initform nil)))
 
 (defmethod print-object ((o test-result) s
                          &aux (name (ignore-errors (name (unit-test o)))))
@@ -671,19 +673,21 @@
     (handler-bind
         ((missing-test (lambda (c) (push (test-name c) (missing results)))))
       (iter (for test in all-tests)
-        (record-result (run-test test) results)))
+        ;; this calls the test fn so go to definition on the failing tests work
+        (record-result (funcall (name test)) results)))
     (signal 'all-tests-complete :results results)
     results))
 
 
-(defun %with-summary (body-fn)
+(defun with-summary-context (body-fn)
   (handler-bind
-      ((all-tests-complete (lambda (c) (print-summary (results c))))
+      ((test-start (lambda (c) (format *test-stream* "~&Starting: ~A" (name (unit-test c)))))
+       (all-tests-complete (lambda (c) (print-summary (results c))))
        (test-complete (lambda (c) (print-summary (result c)))))
     (funcall body-fn)))
 
 (defmacro with-summary (() &body body)
-  `(%with-summary (lambda () ,@body)))
+  `(with-summary-context (lambda () ,@body)))
 
 
 (defmethod print-summary ((run test-result) &optional (stream *test-stream*))
@@ -701,31 +705,40 @@
   (format stream "~%~%")
   run)
 
+(defun %run-test
+    (u &aux
+      (result (setf *most-recent-run*
+                    (make-instance 'test-result :unit-test u)))
+      (*unit-test* u))
+  ;; todo: clear context provider? so that it must be set via signal?
+  (signal 'test-start :unit-test u)
+  (unwind-protect
+       (handler-bind
+           ((assertion-pass (lambda (c) (push (assertion c) (passed result))))
+            (assertion-fail (lambda (c) (push (failure c) (failed result))))
+            (error (lambda (c)
+                     (push c (errors result))
+                     (unless *debugger-hook*
+                       (return-from %run-test result))))
+            (warning (lambda (c) (push c (warnings result)))))
+         ;; run the test code
+         (setf (return-value result)
+               (if (context-provider u)
+                   (funcall (context-provider u) (test-thunk u))
+                   (funcall (test-thunk u)))))
+    (setf (end-time result) (get-universal-time))
+    (signal 'test-complete :result result))
+  result)
+
+;; This is written this way so that erroring test fns show up in the
+;; stack and then can easily goto-definition
 (defgeneric run-test (test)
-  (:method ((n symbol)) (run-test (first (%get-tests :tests n))))
+  (:method ((n symbol)) (funcall n))
   (:method :around ((u unit-test))
     (%log-around (#?"Running Test:${(name u)}")
       (call-next-method)))
-  (:method ((u unit-test)
-            &aux (result (setf *most-recent-run*
-                               (make-instance 'test-result :unit-test u)))
-            (*unit-test* u))
-    ;; todo: clear context provider? so that it must be set via signal?
-    (signal 'test-start :unit-test u)
-    (unwind-protect
-         (handler-bind
-             ((assertion-pass (lambda (c) (push (assertion c) (passed result))))
-              (assertion-fail (lambda (c) (push (failure c) (failed result))))
-              (error (lambda (c) (push c (errors result))))
-              (warning (lambda (c) (push c (warnings result)))))
-           ;; run the test code
-           (setf (return-value result)
-                 (if (context-provider u)
-                     (funcall (context-provider u) (test-thunk u))
-                     (funcall (test-thunk u)))))
-      (setf (end-time result) (get-universal-time))
-      (signal 'test-complete :result result))
-    result))
+  (:method ((u unit-test))
+    (run-test (name u))))
 
 ;;; Print failures
 
