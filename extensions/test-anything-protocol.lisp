@@ -7,41 +7,49 @@
 
 (export '(write-tap write-tap-to-file))
 
-(defun %write-tap-test-result (name test-result i stream)
+(defun with-tap-context (body-fn)
+  (let ((i 0))
+    (handler-bind
+        ((all-tests-start
+           (lambda (c)
+             (format *test-stream* "TAP version 13~%1..~d~%"
+                     (length (tests (results c))))))
+         (test-complete
+           (lambda (c) (%write-tap-test-result (result c) (incf i)))))
+      (funcall body-fn))))
+
+(defmacro with-tap-summary (() &body body)
+  `(with-tap-context (lambda () ,@body)))
+
+(defun %write-tap-test-result (test-result i
+                               &aux (name (name (unit-test test-result))))
   "Output a single test, taking care to ensure the indentation level
 is the same before and after invocation."
-  (pprint-logical-block (stream nil)
-    (let ((*test-stream* stream))
-      (format stream
+  (pprint-logical-block (*test-stream* nil)
+    (let ((not-ok? (or (failed test-result)
+                       (errors test-result)
+                       (warnings test-result))))
+      (format *test-stream*
               "~:[ok~;not ok~] ~d ~s (~,2f s)"
-              (or (failed test-result)
-                  (errors test-result))
-              i name
+              not-ok? i name
               (run-time-s test-result))
-      (when (or (failed test-result)
-                (errors test-result))
+      (when not-ok?
         ;; indent only takes affect after a newline, so force one
-        (format stream "~2I~@:_---~@:_")
-        (when (errors test-result)
-          (print-errors test-result))
-        (when (failed test-result)
-          (print-errors test-result)
-          (format stream "~d failed assertions~@:_" (length (failed test-result)))
-          (print-failures test-result ))
-        (format stream "~@:_..."))
+        (format *test-stream* "~2I~@:_---~@:_")
+        (print-summary test-result)
+        (format *test-stream* "~@:_..."))
       ;; always reset to zero and force a newline
-      (format stream "~0I~@:_"))))
+      (format *test-stream* "~0I~@:_"))))
 
-(defun write-tap (test-results &optional (stream *standard-output*))
+(defun write-tap (test-results)
   "Write the test results to `stream` in TAP format. Returns the test
 results."
   (check-type test-results test-results-db)
   (let ((i 0)
         (*print-pretty* T))
-    (format stream "TAP version 13~%1..~d~%"
-            (hash-table-count (table test-results)))
-    (iter (for (name test-result) in-hashtable (table test-results))
-      (%write-tap-test-result name test-result (incf i) stream)))
+    (format *test-stream* "TAP version 13~%1..~d~%" (length (tests test-results)))
+    (iter (for test-result in (tests test-results))
+      (%write-tap-test-result test-result (incf i))))
   test-results)
 
 (defun write-tap-to-file (test-results path)
@@ -49,8 +57,8 @@ results."
 Returns pathname to the output file"
   (check-type path (or string pathname))
   (ensure-directories-exist path)
-  (with-open-file (s path :direction :output :if-exists :supersede)
-    (write-tap test-results s))
+  (with-open-file (*test-stream* path :direction :output :if-exists :supersede)
+    (write-tap test-results))
   (truename path))
 
 #|

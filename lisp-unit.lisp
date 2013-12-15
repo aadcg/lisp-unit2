@@ -206,9 +206,9 @@
            )))
     (install-test unit-test)
     (declaim (notinline ,name))
-    (defun ,name ()
+    (defun ,name (&key test-context-provider)
       (declare (optimize (debug 3)))
-      (%run-test unit-test))))
+      (%run-test unit-test :test-context-provider test-context-provider))))
 
 ;;; Manage tests
 
@@ -533,8 +533,9 @@
       (- (end-time o) (start-time o)))
      -1)))
 
-(defclass test-results-db (test-results-mixin)
-  ((table :accessor table :initarg :table :initform (make-hash-table)))
+(defclass test-results-db (test-results-mixin unit-test-control-mixin)
+  ((table :accessor table :initarg :table :initform (make-hash-table))
+   (tests :accessor tests :initarg :tests :initform nil))
   (:documentation
    "Store the results of the tests for further evaluation."))
 
@@ -583,10 +584,7 @@
 
 (defun test-names (test-results-db)
   "Return a list of the test names in the database."
-  (iter (for (name test-result) in-hashtable (table test-results-db))
-    (collecting name)))
-
-
+  (mapcar #'name (tests test-results-db)))
 
 ;;; Run the tests
 (define-condition missing-test (warning)
@@ -604,6 +602,13 @@
   ((result :accessor result :initarg :result :initform nil))
   (:documentation
    "Signaled when a single test is finished."))
+
+(define-condition all-tests-start ()
+  ((results
+    :type 'test-results-db
+    :initarg :results
+    :reader results))
+  (:documentation "Signaled when a single test starts."))
 
 (define-condition all-tests-complete ()
   ((results
@@ -650,9 +655,7 @@
            (cons run (funcall status db))
            db))
 
-(defvar *most-recent-result* nil)
-
-(defgeneric run-tests (&key tests tags package)
+(defgeneric run-tests (&key tests tags package test-context-provider)
   (:documentation
    "Run the specified tests.
 
@@ -660,29 +663,60 @@
    and tags are nil (the default), then we run all tests in
    package (defaulting to *package*)
   ")
-  (:method :around (&key tests tags (package *package*))
-    (%log-around (#?"Running tests:${tests} tags:${tags} package:${package}")
+  (:method :around (&key tests tags (package *package*) test-context-provider)
+    (%log-around (#?"Running tests:${tests} tags:${tags} package:${package} context:${test-context-provider}")
       (call-next-method)))
-  (:method (&key tests tags (package *package*)
-            &aux (results (make-instance 'test-results-db))
-            (all-tests
-             (%get-tests :tests tests :tags tags :package package)))
+  (:method (&key
+            tests tags (package *package*) test-context-provider
+            &aux
+            (all-tests (%get-tests :tests tests :tags tags :package package))
+            (results (make-instance 'test-results-db :tests all-tests)))
     (%log #?"Running tests:${all-tests}" :level 0)
+    (signal 'all-tests-start :results results)
     (unwind-protect
          (handler-bind
              ((missing-test (lambda (c) (push (test-name c) (missing results)))))
            (iter (for test in all-tests)
              ;; this calls the test fn so go to definition on the failing tests work
-             (record-result (funcall (name test)) results)))
+             (let ((*unit-test* test))
+               (record-result (if test-context-provider
+                                  (funcall test-context-provider (name test))
+                                  (funcall (name test))) results))))
       (setf (end-time results) (get-universal-time))
       (signal 'all-tests-complete :results results))
     results))
 
+(defun do-contexts (body-fn &rest contexts)
+  "runs the body-fn inside of contexts, the last context will be the outermost
+   all nils in contexts are ignored"
+  (labels ((%make (contexts &optional so-far-fn
+                   &aux (c (first contexts)) (them (rest contexts)))
+             (cond
+               ((and (null c) (null them) so-far-fn))
+               ((null c) (%make them so-far-fn))
+               ((null them) (lambda () (funcall c so-far-fn)))
+               (T (%make them
+                         (if so-far-fn
+                             (lambda () (funcall c so-far-fn))
+                             (lambda () (funcall c))))))))
+    (funcall (%make (cons body-fn contexts)))))
+
+#|
+(defun test-body-thunk () (%log "Body" :level 5))
+(defun test-context-1 (body-fn)
+  (%log-around ("context-1" :start-level 5 :end-level 5)
+    (funcall body-fn)))
+(defun test-context-2 (body-fn)
+  (%log-around ("context-2" :start-level 5 :end-level 5)
+    (funcall body-fn)))
+|#
+
 (defun %run-test
-    (u &aux
-      (result (setf (most-recent-result u)
-                    (make-instance 'test-result :unit-test u)))
-      (*unit-test* u))
+    (u &key test-context-provider
+        &aux
+        (result (setf (most-recent-result u)
+                      (make-instance 'test-result :unit-test u)))
+        (*unit-test* u))
   ;; todo: clear context provider? so that it must be set via signal?
   (signal 'test-start :unit-test u)
   (with-simple-restart (continue "Continue running the next test")
@@ -697,22 +731,23 @@
               (warning (lambda (c) (push c (warnings result)))))
            ;; run the test code
            (setf (return-value result)
-                 (if (context-provider u)
-                     (funcall (context-provider u) (test-thunk u))
-                     (funcall (test-thunk u)))))
+                 (do-contexts (test-thunk u)
+                   (context-provider u)
+                   test-context-provider)))
       (setf (end-time result) (get-universal-time))
       (signal 'test-complete :result result)))
   result)
 
 ;; This is written this way so that erroring test fns show up in the
 ;; stack and then can easily goto-definition
-(defgeneric run-test (test)
-  (:method ((n symbol)) (funcall n))
-  (:method :around ((u unit-test))
-    (%log-around (#?"Running Test:${(name u)}")
+(defgeneric run-test (test &key test-context-provider)
+  (:method ((n symbol) &key test-context-provider )
+    (funcall n :test-context-provider test-context-provider))
+  (:method :around ((u symbol) &key test-context-provider)
+    (%log-around (#?"Running Test:${(name u)} context:${test-context-provider}")
       (call-next-method)))
-  (:method ((u unit-test))
-    (run-test (name u))))
+  (:method ((u unit-test) &key test-context-provider)
+    (run-test (name u) :test-context-provider test-context-provider)))
 
 
 ;;; Useful equality predicates for tests
