@@ -120,16 +120,21 @@
    (doc :accessor doc :initarg :doc :initform nil)
    (code :accessor code :initarg :code :initform nil
          :documentation "The forms to produce the fn")
-   (tags :accessor tags :initarg :tags :initform nil))
+   (tags :accessor tags :initarg :tags :initform nil)
+   (most-recent-result :accessor most-recent-result :initarg :most-recent-result :initform nil))
   (:documentation
    "Organize the unit test documentation and code."))
+
+(defun short-full-symbol-name (s)
+  (let* ((package (symbol-package s))
+         (nick (first (package-nicknames package)))
+         (p (or nick (package-name package) "#")))
+    #?"${p}:${s}"))
 
 (defmethod print-object ((o unit-test) s)
   "Print the auto-print-items for this instance."
   (print-unreadable-object (o s :type t :identity t)
-    (format s "~A:~A "
-            (package-name (symbol-package (name o)))
-            (name o))))
+    (format s (short-full-symbol-name (name o)))))
 
 (defgeneric test-thunk-name (test)
   (:method ((u unit-test))
@@ -538,15 +543,11 @@
    (return-value :accessor return-value :initarg :return-value :initform nil)))
 
 (defmethod print-object ((o test-result) s
-                         &aux (name (ignore-errors (name (unit-test o))))
-                         (package (symbol-package name))
-                         (nick (first (package-nicknames package))))
+                         &aux (name (ignore-errors (name (unit-test o)))))
   "Print the auto-print-items for this instance."
-    (format s "#<RESULT ~A:~A ~A(~d)>" (or nick (package-name package)) name
+    (format s "#<RESULT ~A ~A(~d)>" (short-full-symbol-name name)
             (ignore-errors (status o))
             (ignore-errors (length (funcall (status o) o)))))
-
-
 
 (defgeneric passed-assertions (it)
   (:method ((u test-result))
@@ -679,27 +680,28 @@
 
 (defun %run-test
     (u &aux
-      (result (setf *most-recent-run*
+      (result (setf (most-recent-result u)
                     (make-instance 'test-result :unit-test u)))
       (*unit-test* u))
   ;; todo: clear context provider? so that it must be set via signal?
   (signal 'test-start :unit-test u)
-  (unwind-protect
-       (handler-bind
-           ((assertion-pass (lambda (c) (push (assertion c) (passed result))))
-            (assertion-fail (lambda (c) (push (failure c) (failed result))))
-            (error (lambda (c)
-                     (push c (errors result))
-                     (unless *debugger-hook*
-                       (return-from %run-test result))))
-            (warning (lambda (c) (push c (warnings result)))))
-         ;; run the test code
-         (setf (return-value result)
-               (if (context-provider u)
-                   (funcall (context-provider u) (test-thunk u))
-                   (funcall (test-thunk u)))))
-    (setf (end-time result) (get-universal-time))
-    (signal 'test-complete :result result))
+  (with-simple-restart (continue "Continue running the next test")
+    (unwind-protect
+         (handler-bind
+             ((assertion-pass (lambda (c) (push (assertion c) (passed result))))
+              (assertion-fail (lambda (c) (push (failure c) (failed result))))
+              (error (lambda (c)
+                       (push c (errors result))
+                       (unless *debugger-hook*
+                         (return-from %run-test result))))
+              (warning (lambda (c) (push c (warnings result)))))
+           ;; run the test code
+           (setf (return-value result)
+                 (if (context-provider u)
+                     (funcall (context-provider u) (test-thunk u))
+                     (funcall (test-thunk u)))))
+      (setf (end-time result) (get-universal-time))
+      (signal 'test-complete :result result)))
   result)
 
 ;; This is written this way so that erroring test fns show up in the
