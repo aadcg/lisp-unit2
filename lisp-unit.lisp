@@ -201,7 +201,9 @@
            )))
     (install-test unit-test)
     (declaim (notinline ,name))
-    (defun ,name () (%run-test unit-test))))
+    (defun ,name ()
+      (declare (optimize (debug 3)))
+      (%run-test unit-test))))
 
 ;;; Manage tests
 
@@ -492,14 +494,32 @@
 ;;; Test results database
 
 (defclass test-results-mixin ()
-  ((start-time :accessor start-time :initarg :start-time :initform (get-universal-time))
-   (end-time :accessor end-time :initarg :end-time :initform nil)
-   (passed :accessor passed :initarg :passed :initform nil)
-   (failed :accessor failed :initarg :failed :initform nil)
-   (errors :accessor errors :initarg :errors :initform nil)
-   (missing :accessor missing :initarg :missing :initform nil)
-   (warnings :accessor warnings :initarg :warnings :initform nil)
-   (empty :accessor empty :initarg :empty :initform nil)))
+  #.`((start-time :accessor start-time :initarg :start-time
+                  :initform (get-universal-time))
+      (end-time :accessor end-time :initarg :end-time :initform nil)
+      ;; SORRY want to keep this in sync with the +statuses, with minimal
+      ;; shenanigans
+      ,@(iter
+          (for s in
+               (symbol-value
+                (defparameter +statuses+
+                  '(errors failed warnings passed missing empty)
+                  "List of statuses in order of priority for
+                   categorizing test runs")))
+          (collect `(,s :accessor ,s :initform nil)))))
+
+(defun status ( u )
+  (or
+   (iter (for s in +statuses+)
+     (when (%has? s u)
+       (return s)))
+   'empty))
+
+
+
+(defmethod %has? (status thing
+                  &aux (n (length (funcall status thing))))
+  (when (< 0 n) n))
 
 (defgeneric run-time (it)
   (:method ((o test-results-mixin))
@@ -518,22 +538,15 @@
    (return-value :accessor return-value :initarg :return-value :initform nil)))
 
 (defmethod print-object ((o test-result) s
-                         &aux (name (ignore-errors (name (unit-test o)))))
+                         &aux (name (ignore-errors (name (unit-test o))))
+                         (package (symbol-package name))
+                         (nick (first (package-nicknames package))))
   "Print the auto-print-items for this instance."
-  (print-unreadable-object (o s :type t :identity t)
-    (format s "~A:~A " (package-name (symbol-package name)) name)))
+    (format s "#<RESULT ~A:~A ~A(~d)>" (or nick (package-name package)) name
+            (ignore-errors (status o))
+            (ignore-errors (length (funcall (status o) o)))))
 
-(defmethod %has? (status thing
-                  &aux (n (length (funcall status thing))))
-  (when (< 0 n) n))
 
-(defmethod status ((u test-result))
-  (cond
-    ((%has? 'errors u) 'errors)
-    ((%has? 'failed u) 'failed)
-    ((%has? 'warnings u) 'warnings)
-    ((%has? 'passed u) 'passed)
-    (t 'empty)))
 
 (defgeneric passed-assertions (it)
   (:method ((u test-result))
