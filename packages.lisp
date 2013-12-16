@@ -18,8 +18,11 @@
      :assert-false :assert-error)
     ;; Functions for managing tests
     (:export
+     ;; statuses
+     :errors :failed :warnings :passed :missing :empty
      :define-test
      :list-tests
+     :get-tests
      :test-code
      :test-documentation
      :remove-tests
@@ -27,26 +30,30 @@
      :run-test
      :use-debugger)
     ;; Functions for managing tags
-    (:export :list-tags
+    (:export
+     :list-tags
      :tagged-tests
-             :remove-tags
-     :run-tags)
+     :remove-tags)
     ;; Functions for reporting test results
     (:export
      :with-summary
+     :with-summary-context
      :test-names
-     :failed
-     :error
-     :passed
-     :missing
-     :print-failures
-     :print-errors
-     :summarize-results)
+     :print-summary
+     :print-status-summary
+     :summarize-results
+     :with-tap-summary
+     :with-tap-context
+     :write-tap
+     :write-tap-to-file)
     ;; Functions for extensibility via signals
-    (:export :test-run-complete
+    (:export #:assertion-pass #:assertion-fail
+             #:all-tests-start #:all-tests-complete
+             #:test-start #:test-complete
      :results)
     ;; Utility predicates
     (:export :logically-equal :set-equal))
+
   (defpackage :lisp-unit-asserts
     (:import-from :lisp-unit
      :assert-eq :assert-eql :assert-equal :assert-equalp

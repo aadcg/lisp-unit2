@@ -5,8 +5,6 @@
 
 ;;; Symbols exported from the TAP extension
 
-(export '(write-tap write-tap-to-file))
-
 (defun with-tap-context (body-fn)
   (let ((i 0))
     (handler-bind
@@ -35,7 +33,7 @@ is the same before and after invocation."
               (run-time-s test-result))
       (when not-ok?
         ;; indent only takes affect after a newline, so force one
-        (format *test-stream* "~2I~@:_---~@:_")
+        (format *test-stream* "~2I~@:_---~4I~@:_")
         (print-summary test-result)
         (format *test-stream* "~@:_..."))
       ;; always reset to zero and force a newline
@@ -48,8 +46,8 @@ results."
   (let ((i 0)
         (*print-pretty* T))
     (format *test-stream* "TAP version 13~%1..~d~%" (length (tests test-results)))
-    (iter (for test-result in (tests test-results))
-      (%write-tap-test-result test-result (incf i))))
+    (iter (for res in-vector (results test-results))
+      (%write-tap-test-result res (incf i))))
   test-results)
 
 (defun write-tap-to-file (test-results path)

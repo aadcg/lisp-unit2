@@ -9,21 +9,15 @@ have been inspired by [JUnit for Java][JUnit].
 Recently longtime users at Acceleration.net felt motivated to refactor
 significantly, trying to make some sweeping improvments
 
-[Documentation is located on the project wiki.][wiki]
-
 ### Features
-
 * Written in portable Common Lisp
-* Loadable with [ASDF][] or [Quicklisp][]
+* Loadable with [ASDF] or [Quicklisp]
 * Simple to define and run tests
-* Redfine functions and macros without reloading tests
+* Redfine functions and macros without reloading tests - tests are
+  recompiled before each run
 * Test return values, printed output, macro expansions, and conditions
-* Fined grained control over the testing output - by writing different
-  summary handlers
 * Store all test results in a database object that can be examined
-* tests grouped and accessed by name, tag, and package of test name
-* Group tests by package for modularity
-* Group tests using tags
+* Tests grouped and accessed by name, tag, and package of test name
 * Signals for starting and completing test runs (both individually and
   as a group)
 
@@ -32,6 +26,8 @@ significantly, trying to make some sweeping improvments
  * Tests are stored by their name's symbol-package (easing the
    complexity of this package vs the package argument)
  * package arguments now just retrieve all tests in a given package
+ * dynamic variable consolidation (eg: one test database with three hashtables
+   instead of three dynamic variables containing hashtables)
 * All output goes to its own stream (and can therefore be manipulated
   at will). *test-stream* defaults to *standard-output* as it always
   has.
@@ -46,12 +42,17 @@ significantly, trying to make some sweeping improvments
  * assertions passing and failing
  * tests starting and completeing
  * test batches starting and completeing
-* Logging used throughout (to ease debugging what is happening)
+ * Dynamic variables available in signal handlers and all tests
+   *unit-test* and *results*
+* Logging used throughout (to ease debugging of lisp-unit2)
+* TAP output first class and displays messages about the error
+* Better job of reporting compiler warnings and errors: when defining
+  the test (and while running it)
+
 
 ### Extensions
 
 * Floating point predicates
-* [Test Anything Protocol][TAP] output
 
 ### How to use lisp-unit
 
