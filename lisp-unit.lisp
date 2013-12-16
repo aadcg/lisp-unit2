@@ -181,7 +181,9 @@
 (defmethod %compile ((u unit-test))
   (%log-around (#?"Compiling Test: ${ (name u) }" :start-level 0)
     (compile (test-thunk-name u)
-             `(lambda (),(doc u) ,@(code u)))))
+             `(lambda ()
+               (declare (optimize (debug 3)))
+               ,(doc u) ,@(code u)))))
 
 
 (defun test-name-error-report (test-name-error stream)
@@ -210,14 +212,13 @@
            :doc ,(when (stringp (first body)) (first body))
            :tags ,tags
            :code '(,@body)
-           :context-provider ,context-provider
+           :context-provider (combine-contexts ,context-provider)
            )))
-    (install-test unit-test)
-    (declaim (notinline ,name))
     (defun ,name (&key test-context-provider)
       (declare (optimize (debug 3)))
       "Runs this test, this fn is useful to help going to test definitions"
-      (%run-test unit-test :test-context-provider test-context-provider))))
+      (%run-test unit-test :test-context-provider test-context-provider))
+    (install-test unit-test)))
 
 ;;; Manage tests
 
