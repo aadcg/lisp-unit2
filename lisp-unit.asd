@@ -33,8 +33,11 @@
   :components
   ((:file "packages")
    (:file "lisp-unit")
+   (:file "asserts")
+   (:file "summarize")
    (:module extensions
     :depends-on ("lisp-unit")
+    :serial t
     :components ((:file "rational")
                  (:file "floating-point")
                  (:file "test-anything-protocol"))))

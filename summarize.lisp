@@ -7,7 +7,8 @@
     (handler-bind
         ((test-start
            (lambda (c) (format *test-stream* "~@:_Starting: ~A" (name (unit-test c)))))
-         (all-tests-complete (lambda (c) (%print-result-summary (results c))))
+         (all-tests-complete
+           (lambda (c) (%print-result-summary (results c))))
          (test-complete (lambda (c) (%print-summary (result c)))))
       (setf rtn (multiple-value-list (funcall body-fn)))))
   (apply #'values rtn))
@@ -22,8 +23,8 @@
                (*print-pretty* t))
   (format *test-stream* "~?~?" (first prefix) (rest prefix) s args))
 
-(defun %print-result-summary (o)
-  (let ((total (length (test-names o)))
+(defmethod %print-result-summary ((o test-results-db))
+  (let ((total (length (tests o)))
         (passed (length (passed-assertions o)))
         (failed (length (failed-assertions o)))
         (errors (length (errors o)))

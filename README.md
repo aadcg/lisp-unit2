@@ -37,7 +37,9 @@ significantly, trying to make some sweeping improvments
   goto-definition in a stack trace brings you to the test definition
 * Contexts can be applied on a test or a run-test(s) to provide common
   setup/tear down locations (eg: provide a database to tests that need
-  it)
+  it).  Contexts are functions that accept a thunk and apply it inside
+  of a dynamic context eg: 
+  `(lambda (body-thunk) (let ((*var* 1))(funcall body-thunk)))`
 * Signals used throughout (including to drive current output summaries)
  * assertions passing and failing
  * tests starting and completeing
@@ -56,29 +58,43 @@ significantly, trying to make some sweeping improvments
 
 ### How to use lisp-unit
 
-The core definitions of *lisp-unit* may be used by loading the single
-file 'lisp-unit.lisp'. To use the extensions, *lisp-unit* must be
-loaded using either [Quicklisp][] or [ASDF][].
+1. Load using [Quicklisp][] : `(ql:quickload :lisp-unit)` or [ASDF][]
+   : `(asdf:load-system :lisp-unit)`.
+2. Define some tests (for best luck define tests in their own package
+   by making their name be in a specific package).  By having tests in
+   their own package, the test and the fn being tested can share the
+   same name. (Tests are compiled to a function named after the test
+   that runs it and an object in the test database)
+```
+(lisp-unit:define-test my-tests::test-subtraction 
+    (:tags '(my-tests::bar))
+  (assert-eql 1 (- 2 1)))
+```
+3. Run all tests in your package
+```
+;; with summary provides results while the tests are running
+(with-summary ()
+   (run-tests :package :my-tests))
 
-1. Load (or compile and load) as a single file : `(load "lisp-unit")`.
-2. Load using [Quicklisp][] : `(ql:quickload :lisp-unit)`.
-3. Load using [ASDF][] : `(asdf:load-system :lisp-unit)`.
+;; to print the results after the run is complete
+(print-summary (run-tests :tags 'my-tests::bar))
 
-## Version 0.9.5 Features
+;; The difference is in whether or not the output occurs while the
+;; tests are running or after all the tests have run
 
-No new features, improved the usability based on user feedback. The
-list of tests or tags to the following functions is now optional and
-defaults to `:ALL`.
+;; to disable the debugger:
+(let (*debug-hook*)
+  (run-tests :tests 'my-tests::test-subtraction))
+```
 
-* `(remove-tests [names] [package])`
-* `(tagged-tests [tags] [package])`
-* `(remove-tags [tags] [package])`
-* `(run-tests [names] [package])`
-* `(run-tags [tags] [package])`
+See the internal test suite for more and better examples (internal-test/*)
 
-## Version 1 Remaining Tasks
 
-* (1.0.0) Expanded internal testing.
+
+
+##  Remaining Tasks
+
+*  Expanded internal testing.
 
 ### Future Features
 
@@ -97,6 +113,5 @@ defaults to `:ALL`.
 
 ## 0.9.5 Acknowledgments
 
-* [Jesse Alama][jessealama] for usability feedback.
-
+* [Jesse Alama][jessealama] for usability feedback. 
 [jessealama]: <https://github.com/jessealama> "Jesse Alama"

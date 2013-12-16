@@ -30,7 +30,7 @@ is the same before and after invocation."
       (format *test-stream*
               "~:[ok~;not ok~] ~d ~s (~,2f s)"
               not-ok? i name
-              (run-time-s test-result))
+              (run-time test-result))
       (when not-ok?
         ;; indent only takes affect after a newline, so force one
         (format *test-stream* "~2I~@:_---~4I~@:_")

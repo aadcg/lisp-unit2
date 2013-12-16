@@ -8,14 +8,23 @@
   (defpackage :lisp-unit
     (:use :common-lisp :iter)
     ;; Print parameters
-    (:export :*print-summary*
-     :*print-failures*
-             :*print-errors*)
+    (:export #:*test-stream*)
     ;; Forms for assertions
     (:export
      :assert-eq :assert-eql :assert-equal :assert-equalp
      :assert-equality :assert-prints :assert-expands :assert-true
-     :assert-false :assert-error)
+     :assert-false :assert-error :assert-warning :assert-no-warning
+     ;; floating point
+     :*measure* :*epsilon* :*significant-figures*
+     :default-epsilon :sumsq :sump :norm
+     :relative-error :relative-error-norm
+     :array-error
+     :float-equal :assert-float-equal
+     :sigfig-equal :assert-sigfig-equal
+     :norm-equal :assert-norm-equal
+     :number-equal :assert-number-equal
+     :numerical-equal :assert-numerical-equal
+     )
     ;; Functions for managing tests
     (:export
      ;; statuses
@@ -28,7 +37,8 @@
      :remove-tests
      :run-tests
      :run-test
-     :use-debugger)
+
+     :unit-test :*unit-test*)
     ;; Functions for managing tags
     (:export
      :list-tags
@@ -45,7 +55,8 @@
      :with-tap-summary
      :with-tap-context
      :write-tap
-     :write-tap-to-file)
+     :write-tap-to-file
+     :*result* :*results*)
     ;; Functions for extensibility via signals
     (:export #:assertion-pass #:assertion-fail
              #:all-tests-start #:all-tests-complete
@@ -56,11 +67,32 @@
 
   (defpackage :lisp-unit-asserts
     (:import-from :lisp-unit
-     :assert-eq :assert-eql :assert-equal :assert-equalp
+      :assert-eq :assert-eql :assert-equal :assert-equalp
      :assert-equality :assert-prints :assert-expands :assert-true
-     :assert-false :assert-error)
+     :assert-false :assert-error :assert-warning :assert-no-warning
+     ;; floating point
+     :*measure* :*epsilon* :*significant-figures*
+     :default-epsilon :sumsq :sump :norm
+     :relative-error :relative-error-norm
+     :array-error
+     :float-equal :assert-float-equal
+     :sigfig-equal :assert-sigfig-equal
+     :norm-equal :assert-norm-equal
+     :number-equal :assert-number-equal
+     :numerical-equal :assert-numerical-equal)
     (:export
      :assert-eq :assert-eql :assert-equal :assert-equalp
      :assert-equality :assert-prints :assert-expands :assert-true
-     :assert-false :assert-error))
+     :assert-false :assert-error :assert-warning :assert-no-warning
+     ;; floating point
+     :*measure* :*epsilon* :*significant-figures*
+     :default-epsilon :sumsq :sump :norm
+     :relative-error :relative-error-norm
+     :array-error
+     :float-equal :assert-float-equal
+     :sigfig-equal :assert-sigfig-equal
+     :norm-equal :assert-norm-equal
+     :number-equal :assert-number-equal
+     :numerical-equal :assert-numerical-equal
+     ))
   )

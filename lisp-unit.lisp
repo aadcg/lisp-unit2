@@ -1,5 +1,4 @@
 ;;;-*- Mode: Lisp; Syntax: ANSI-Common-Lisp -*-
-#| SEE COPYRIGHT / README at BOTTOM |#
 
 (in-package :lisp-unit)
 (cl-interpol:enable-interpol-syntax)
@@ -40,6 +39,7 @@
   "The currently executing unit test (bound in %run-test, ie every test
   function)" )
 (defvar *results* nil "The current results database (bound in run-tests)")
+(defvar *result* nil "The current test result  (bound in %run-test)")
 
 ;;; Global unit test database
 (defclass unit-test-control-mixin ()
@@ -262,232 +262,6 @@
       (iter (for tag in (alexandria:ensure-list tags))
         (remhash tag (tag-index *test-db*)))))
 
-;;; Assert macros
-
-(defmacro assert-eq (expected form &rest extras)
-  "Assert whether expected and form are EQ."
-  `(expand-assert :equal ,form ,form ,expected ,extras :test #'eq))
-
-(defmacro assert-eql (expected form &rest extras)
-  "Assert whether expected and form are EQL."
-  `(expand-assert :equal ,form ,form ,expected ,extras :test #'eql))
-
-(defmacro assert-equal (expected form &rest extras)
-  "Assert whether expected and form are EQUAL."
-  `(expand-assert :equal ,form ,form ,expected ,extras :test #'equal))
-
-(defmacro assert-equalp (expected form &rest extras)
-  "Assert whether expected and form are EQUALP."
-  `(expand-assert :equal ,form ,form ,expected ,extras :test #'equalp))
-
-(defmacro assert-error (condition form &rest extras)
-  "Assert whether form signals condition."
-  `(expand-assert :error ,form (expand-error-form ,form)
-                  ,condition ,extras))
-
-(defmacro assert-expands (expansion form &rest extras)
-  "Assert whether form expands to expansion."
-  `(expand-assert :macro ,form
-                  (expand-macro-form ,form nil)
-                  ',expansion ,extras))
-
-(defmacro assert-false (form &rest extras)
-  "Assert whether the form is false."
-  `(expand-assert :result ,form ,form nil ,extras))
-
-(defmacro assert-equality (test expected form &rest extras)
-  "Assert whether expected and form are equal according to test."
-  `(expand-assert :equal ,form ,form ,expected ,extras :test ,test))
-
-(defmacro assert-prints (output form &rest extras)
-  "Assert whether printing the form generates the output."
-  `(expand-assert :output ,form (expand-output-form ,form)
-                  ,output ,extras))
-
-(defmacro assert-true (form &rest extras)
-  "Assert whether the form is true."
-  `(expand-assert :result ,form ,form t ,extras))
-
-(defmacro expand-assert (type form body expected extras &key (test '#'eql))
-  "Expand the assertion to the internal format."
-  `(internal-assert ,type ',form
-                    (lambda () ,body)
-                    (lambda () ,expected)
-                    (expand-extras ,extras)
-                    ,test))
-
-(defmacro expand-error-form (form)
-  "Wrap the error assertion in HANDLER-CASE."
-  `(handler-case ,form
-     (condition (error) error)))
-
-(defmacro expand-output-form (form)
-  "Capture the output of the form in a string."
-  (let ((out (gensym)))
-    `(let* ((,out (make-string-output-stream))
-            (*standard-output*
-             (make-broadcast-stream *standard-output* ,out)))
-       ,form
-       (get-output-stream-string ,out))))
-
-(defmacro expand-macro-form (form env)
-  "Expand the macro form once."
-  `(let ((*gensym-counter* 1))
-     (macroexpand-1 ',form ,env)))
-
-(defmacro expand-extras (extras)
-  "Expand extra forms."
-  `(lambda ()
-     (list ,@(mapcan (lambda (form) (list `',form form)) extras))))
-
-(defgeneric assert-result (type test expected actual)
-  (:documentation
-   "Return the result of the assertion."))
-
-(defgeneric record-failure (type form actual expected extras test)
-  (:documentation
-   "Record the details of the failure."))
-
-(defclass failure-result ()
-  ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
-   (form :accessor form :initarg :form :initform nil)
-   (actual :accessor actual :initarg :actual :initform nil)
-   (expected :accessor expected :initarg :expected :initform nil)
-   (extras :accessor extras :initarg :extras :initform nil)
-   (test :accessor test :initarg :test :initform nil))
-  (:documentation
-   "Failure details of the assertion."))
-
-(defun %record-failure (class form actual expected extras test)
-  "Return an instance of the failure result."
-  (make-instance class
-                 :form form
-                 :actual actual
-                 :expected expected
-                 :extras extras
-                 :test test))
-
-(defclass equal-result (failure-result)
-  ()
-  (:documentation
-   "Result of a failed equal assertion."))
-
-(defmethod assert-result ((type (eql :equal)) test expected actual)
-  "Return the result of an equal assertion."
-  (and
-   (<= (length expected) (length actual))
-   (every test expected actual)))
-
-(defmethod record-failure ((type (eql :equal))
-                           form actual expected extras test)
-  "Return an instance of an equal failure result."
-  (%record-failure 'equal-result form actual expected extras test))
-
-(defclass error-result (failure-result)
-  ()
-  (:documentation
-   "Result of a failed error assertion."))
-
-(defmethod assert-result ((type (eql :error)) test expected actual)
-  "Return the result of an error assertion."
-  (declare (ignore test))
-  (or
-   (eql (car actual) (car expected))
-   (typep (car actual) (car expected))))
-
-(defmethod record-failure ((type (eql :error))
-                           form actual expected extras test)
-  "Return an instance of an error failure result."
-  (%record-failure 'error-result form actual expected extras test))
-
-(defclass macro-result (failure-result)
-  ()
-  (:documentation
-   "Result of a failed macro expansion assertion."))
-
-(defun %expansion-equal (form1 form2)
-  "Descend into the forms checking for equality."
-  (let ((item1 (first form1))
-        (item2 (first form2)))
-    (cond
-     ((and (null item1) (null item2)))
-     ((and (listp item1) (listp item2))
-      (and
-       (%expansion-equal item1 item2)
-       (%expansion-equal (rest form1) (rest form2))))
-     ((and (symbolp item1) (symbolp item2))
-      (and
-       (string= (symbol-name item1) (symbol-name item2))
-       (%expansion-equal (rest form1) (rest form2))))
-     (t (and
-         (equal item1 item2)
-         (%expansion-equal (rest form1) (rest form2)))))))
-
-(defmethod assert-result ((type (eql  :macro)) test expected actual)
-  "Return the result of a macro assertion."
-  (declare (ignore test))
-  (%expansion-equal (first expected) (first actual)))
-
-(defmethod record-failure ((type (eql :macro))
-                           form actual expected extras test)
-  "Return an instance of a macro failure result."
-  (%record-failure 'macro-result form actual expected extras test))
-
-(defclass boolean-result (failure-result)
-  ()
-  (:documentation
-   "Result of a failed boolean assertion."))
-
-(defmethod assert-result ((type (eql :result)) test expected actual)
-  "Return the result of a result assertion."
-  (declare (ignore test))
-  (logically-equal (car actual) (car expected)))
-
-(defmethod record-failure ((type (eql :result))
-                           form actual expected extras test)
-  "Return an instance of a boolean failure result."
-  (%record-failure 'boolean-result form actual expected extras test))
-
-(defclass output-result (failure-result)
-  ()
-  (:documentation
-   "Result of a failed output assertion."))
-
-(defmethod assert-result ((type (eql :output)) test expected actual)
-  "Return the result of an output assertion."
-  (declare (ignore test))
-  (string=
-   (string-trim '(#\newline #\return #\space) (car actual))
-   (car expected)))
-
-(defmethod record-failure ((type (eql :output))
-                           form actual expected extras test)
-  "Return an instance of an output failure result."
-  (%record-failure 'output-result form actual expected extras test))
-
-(define-condition assertion-pass (condition)
-  ((unit-test :accessor unit-test :initarg :unit-test :initform nil)
-   (assertion :accessor assertion :initarg :assertion :initform nil)))
-
-(define-condition assertion-fail (condition)
-  ((unit-test :accessor unit-test :initarg :unit-test :initform nil)
-   (assertion :accessor assertion :initarg :assertion :initform nil)
-   (failure :accessor failure :initarg :failure :initform nil)))
-
-(defun internal-assert
-       (type form code-thunk expected-thunk extras test)
-  "Perform the assertion and record the results."
-  (let* ((actual (multiple-value-list (funcall code-thunk)))
-         (expected (multiple-value-list (funcall expected-thunk)))
-         (result (assert-result type test expected actual)))
-    (if result
-        (signal 'assertion-pass :unit-test *unit-test* :assertion form)
-        (signal 'assertion-fail :unit-test *unit-test* :assertion form
-                :failure (record-failure type form actual expected
-                                         (when extras (funcall extras)) test)))
-    ;; Return the result
-    result))
-
 ;;; Test results database
 
 (defclass test-results-mixin ()
@@ -512,8 +286,6 @@
        (return s)))
    'empty))
 
-
-
 (defmethod %has? (status thing
                   &aux (n (length (funcall status thing))))
   (when (< 0 n) n))
@@ -531,9 +303,10 @@
   (:documentation
    "Store the results of the tests for further evaluation."))
 
-(defmethod initialize-instance :after ((ctl test-results-db) &key &allow-other-keys)
+(defmethod initialize-instance :after
+    ((ctl test-results-db) &key &allow-other-keys)
   (setf (slot-value ctl 'results)
-        (make-array (length (tests ctl)))))
+        (make-array (length (tests ctl)) :initial-element nil :fill-pointer 0)))
 
 (defclass test-result (test-results-mixin)
   ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
@@ -547,24 +320,30 @@
             (ignore-errors (length (funcall (status o) o)))))
 
 (defgeneric passed-assertions (it)
+  (:method ((n null)) n)
   (:method ((u test-result))
     (passed u))
   (:method ((u test-results-db))
     (iter (for test-result in-vector (results u))
+      (while test-result)
       (appending (passed-assertions test-result)))))
 
 (defgeneric failed-assertions (it)
+  (:method ((n null)) n)
   (:method ((u test-result))
     (failed u))
   (:method ((u test-results-db))
     (iter (for test-result in-vector (results u))
+      (while test-result)
       (appending (failed-assertions test-result)))))
 
 (defgeneric all-warnings (it)
+  (:method ((n null)) n)
   (:method ((u test-result))
     (warnings u))
   (:method ((u test-results-db))
     (iter (for test-result in-vector (results u))
+      (while test-result)
       (appending (warnings test-result)))))
 
 (defmethod print-object ((o test-results-db) stream)
@@ -610,9 +389,15 @@
   (:documentation
    "Signaled when a test run is finished."))
 
-(defmethod record-result ((res test-result) (db test-results-db) idx
+(defun record-result-context (body)
+  "as we are finishing a test (ie: it has the right status)
+   record the result"
+  (unwind-protect (funcall body)
+    (record-result *result* *results*)))
+
+(defmethod record-result ((res test-result) (db test-results-db)
                           &aux (status (status res)))
-  (setf (aref (results db) idx) res)
+  (vector-push res (results db))
   (funcall (fdefinition `(setf ,status))
            (cons res (funcall status db))
            db))
@@ -637,15 +422,15 @@
     (%log #?"Running tests:${all-tests}" :level 0)
     (signal 'all-tests-start :results results)
     (unwind-protect
-         (handler-bind
-             ((missing-test (lambda (c) (push (test-name c) (missing results)))))
+         (handler-bind ((missing-test
+                          (lambda (c) (push (test-name c) (missing results)))))
            (iter (for test in all-tests)
-             (for i from 0)
              ;; this calls the test fn so the test source-location is
              ;;  available in stack traces
-               (record-result
-                (funcall (name test) :test-context-provider test-context-provider)
-                results i)))
+             (funcall
+              (name test)
+              :test-context-provider
+              (list #'record-result-context test-context-provider))))
       (setf (end-time results) (get-universal-time))
       (signal 'all-tests-complete :results results))
     results))
@@ -662,7 +447,7 @@
                ((null them) c)
                (t (%make (cons (%combine-2-contexts c (first them))
                                (rest them)))))))
-    (%make (remove-if #'null contexts))))
+    (%make (alexandria:flatten contexts))))
 
 (defun do-contexts (body-fn &rest contexts)
   "runs the body-fn inside of contexts, the last context will be the outermost
@@ -688,7 +473,8 @@
        &aux
        (result (setf (most-recent-result u)
                      (make-instance 'test-result :unit-test u)))
-       (*unit-test* u))
+       (*unit-test* u)
+       (*result* result))
   ;; todo: clear context-provider, data? so that it must be set via signal?
   ;; possibly in an unwind-protect region
   (signal 'test-start :unit-test u)
@@ -743,6 +529,7 @@ vice versa."
 
 
 #|
+Copyright (c) 2013 Russ Tyndall, Acceleration.net
 Copyright (c) 2004-2005 Christopher K. Riesbeck
 
 Permission is hereby granted, free of charge, to any person obtaining
@@ -762,31 +549,4 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
 OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
-
-
-How to use
-----------
-
-1. Read the documentation at:
-   https://github.com/OdonataResearchLLC/lisp-unit/wiki
-
-2. Make a file of DEFINE-TEST's. See exercise-tests.lisp for many
-examples. If you want, start your test file with (REMOVE-TESTS :ALL)
-to clear any previously defined tests.
-
-3. Load this file.
-
-4. (use-package :lisp-unit)
-
-5. Load your code file and your file of tests.
-
-6. Test your code with (RUN-TESTS '(test-name1 test-name2 ...)) or
-simply (RUN-TESTS :ALL) to run all defined tests.
-
-A summary of how many tests passed and failed will be printed.
-
-NOTE: Things are compiled on definition and also on every run of the test
-is expanded. Redefining functions or even macros does not require
-reloading any tests.
-
 |#
