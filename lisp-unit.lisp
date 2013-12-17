@@ -207,12 +207,41 @@
       name
       (error 'test-name-error :datum name)))
 
-(defmacro define-test (name (&key tags context-provider) &body body)
+(defun %in-package (n &optional (package *package*))
+  (typecase n
+    (null n)
+    (keyword n)
+    ((or string symbol)
+     (symbol-munger:english->lisp-symbol
+      n package))
+    (list (mapcar #'%in-package n))))
+
+(defmacro define-test (name (&key tags context-provider package) &body body)
+  "Defines a new test object, test functions and installs the test
+   function in the test database
+
+   name: the name of the test and the test-function
+
+   context-provider: a (lambda (fn)...) (or list of) that runs the fn in a dynamic
+      context
+
+   tags: symbols that can be used to group tests
+
+   If package is provided, the name and any provided tags are reinterned into
+      package before use. Keywords are left alone. This is useful because many
+      times tests and the functions they test, coexist (and always could in
+      lisp-unit v1, now that we create test functions, we dont want them
+      overwriting the original function).
+  "
+  (when package
+    (setf name (%in-package name package)))
   `(let ((unit-test
           (make-instance 'unit-test
            :name ',name
            :doc ,(when (stringp (first body)) (first body))
-           :tags ,tags
+           :tags ,(if package
+                      `(%in-package ,tags ,package)
+                      tags)
            :code '(,@body)
            :context-provider (combine-contexts ,context-provider)
            )))
