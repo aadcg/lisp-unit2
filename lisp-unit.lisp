@@ -3,6 +3,14 @@
 (in-package :lisp-unit)
 (cl-interpol:enable-interpol-syntax)
 
+(defvar *test-stream* *standard-output*)
+(defvar *test-log-stream* *test-stream*)
+(defvar *unit-test* nil
+  "The currently executing unit test (bound in %run-test, ie every test
+  function)" )
+(defvar *results* nil "The current results database (bound in run-tests)")
+(defvar *result* nil "The current test result  (bound in %run-test)")
+
 (defparameter *log-level* 5)
 
 (defun %ts (&optional (time (get-universal-time)))
@@ -33,13 +41,7 @@
 (defparameter *test-db* (make-instance 'test-database)
   "The unit test database is a list of tests and some hashtable indexes")
 
-(defvar *test-stream* *standard-output*)
-(defvar *test-log-stream* *test-stream*)
-(defvar *unit-test* nil
-  "The currently executing unit test (bound in %run-test, ie every test
-  function)" )
-(defvar *results* nil "The current results database (bound in run-tests)")
-(defvar *result* nil "The current test result  (bound in %run-test)")
+
 
 ;;; Global unit test database
 (defclass unit-test-control-mixin ()

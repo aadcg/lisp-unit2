@@ -32,8 +32,8 @@
   :serial t
   :components
   ((:file "packages")
-   (:file "lisp-unit")
    (:file "asserts")
+   (:file "lisp-unit")
    (:file "summarize")
    (:module extensions
     :depends-on ("lisp-unit")
