@@ -81,7 +81,7 @@
   `(setf ,place (%decollect ,it ,place :test ,test :key ,key)))
 
 (defclass test-database ()
-  ((%tests :accessor %tests :initarg :%tests :initform (make-instance 'list-collector))
+  ((%tests :accessor %tests :initarg :%tests :initform nil)
    (name-index :accessor name-index :initarg :name-index :initform (make-hash-table))
    (package-index :accessor package-index :initarg :package-index :initform (make-hash-table))
    (tag-index :accessor tag-index :initarg :tag-index :initform (make-hash-table))))

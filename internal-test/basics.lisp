@@ -1,0 +1,33 @@
+(in-package :lisp-unit-tests)
+
+(define-test collect/decollect (:tags '(utils))
+  (let (list)
+    (iter (for i from 0 to 5)
+      (lisp-unit::%collect! i list))
+    (assert-equal '(0 1 2 3 4 5) (lisp-unit::head list))
+    (lisp-unit::%decollect! 0 list)
+    (assert-equal '(1 2 3 4 5) (lisp-unit::head list))
+    (lisp-unit::%decollect! 5 list)
+    (lisp-unit::%collect! 6 list)
+    (assert-equal '(1 2 3 4 6) (lisp-unit::head list))
+    (lisp-unit::%decollect! 3 list)
+    (lisp-unit::%collect! 7 list)
+    (assert-equal '(1 2 4 6 7) (lisp-unit::head list))
+    ))
+
+(defparameter *context-stack* nil)
+
+(defun test-body-thunk ()
+  (assert-equal '(test-context-2 test-context-1) *context-stack*))
+(defun test-context-1 (body-fn)
+  (assert-equal '() *context-stack*)
+  (let ((*context-stack* (cons 'test-context-1 *context-stack*)))
+    (funcall body-fn)))
+(defun test-context-2 (body-fn)
+  (assert-equal '(test-context-1) *context-stack*)
+  (let ((*context-stack* (cons 'test-context-2 *context-stack*)))
+    (funcall body-fn)))
+
+(define-test combine-contexts (:tags '(utils contexts))
+  (lisp-unit::do-contexts
+    #'test-body-thunk nil #'test-context-1 nil nil #'test-context-2 nil nil ))
