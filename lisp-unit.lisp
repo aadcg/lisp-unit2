@@ -32,11 +32,62 @@
       ,@body)
     (%log #?"   END ${,message}" :level ,end-level)))
 
+(defgeneric head (l)
+  (:method (l) (car l)))
+(defgeneric tail (l)
+  (:method (l) (car l)))
+(defgeneric len (l)
+  (:method (l) (length l)))
+
+(defclass list-collector ()
+  ((head :accessor head :initarg :head :initform nil)
+   (tail :accessor tail :initarg :tail :initform nil)
+   (len :accessor len :initarg :len :initform 0 )))
+
+(defgeneric %collect (it object)
+  (:method (it (o null))
+    (%collect it (make-instance 'list-collector) ))
+  (:method (it (o list-collector) &aux (c (cons it nil)))
+    (incf (len o))
+    (if (null (head o))
+        (setf (head o) c (tail o) c)
+        (setf (cdr (tail o)) c
+              (tail o) c))
+    o))
+
+(defgeneric %decollect (it object &key test key)
+  (:method (it (o null) &key (test #'eql) (key #'name))
+    (declare (ignore it test key))
+    nil)
+  (:method (it (o list-collector) &key  (test #'eql) (key #'identity))
+    (when (head o)
+      (iter (for cons on (head o))
+        (for (this . next) = cons)
+        (for prev previous cons)
+        (when (funcall test it (funcall key this))
+          (cond
+            ((null prev)
+             (setf (head o) next))
+            ((null next) (setf (cdr prev) nil
+                               (tail o) prev))
+            (t (setf (cdr prev) next)))
+          )))
+    o))
+
+(defmacro %collect! (it place)
+  `(setf ,place (%collect ,it ,place)))
+
+(defmacro %decollect! (it place  &key  (test '#'eql) (key '#'identity))
+  `(setf ,place (%decollect ,it ,place :test ,test :key ,key)))
+
 (defclass test-database ()
-  ((tests :accessor tests :initarg :tests :initform nil)
+  ((%tests :accessor %tests :initarg :%tests :initform (make-instance 'list-collector))
    (name-index :accessor name-index :initarg :name-index :initform (make-hash-table))
    (package-index :accessor package-index :initarg :package-index :initform (make-hash-table))
    (tag-index :accessor tag-index :initarg :tag-index :initform (make-hash-table))))
+
+(defmethod tests ((db test-database))
+  (head (%tests db)))
 
 (defparameter *test-db* (make-instance 'test-database)
   "The unit test database is a list of tests and some hashtable indexes")
@@ -69,7 +120,7 @@
   (let* ((package (symbol-package s))
          (nick (first (package-nicknames package)))
          (p (or nick (package-name package) "#")))
-    #?"${p}:${s}"))
+    #?"${p}::${s}"))
 
 (defmethod print-object ((o unit-test) s)
   "Print the auto-print-items for this instance."
@@ -82,30 +133,30 @@
   (%log #?"Installing test ${u}")
   (uninstall-test u) ;; prevents duplication, does a lot of work :/
   (%compile u)
-  (push u (tests db))
+  (%collect! u (%tests db))
   (setf (gethash (name u) (name-index db)) u)
-  (push u (gethash package (package-index db)))
+  (%collect! u (gethash package (package-index db)))
   (iter (for tag in (alexandria:ensure-list (tags u)))
-    (push u (gethash tag (tag-index db)))))
+    (%collect! u (gethash tag (tag-index db)))))
 
 (defun %uninstall-name (n &optional tags
                         &aux (db *test-db*)
                         (package (symbol-package n)))
-  (setf (tests db) (remove n (tests db) :key #'name))
+  (%decollect! n (%tests db) :key #'name)
   (remhash n (name-index db))
   (when package
     (setf (gethash package (package-index db))
-          (remove n (gethash package (package-index db)) :key #'name)))
+          (%decollect! n (gethash package (package-index db)) :key #'name)))
   (when tags
     (if (eql t tags)
         (iter (for (tag vals) in-hashtable (tag-index db))
           (setf
            (gethash tag (tag-index db))
-           (remove n (gethash tag (tag-index db)) :key #'name)))
+           (%decollect! n (gethash tag (tag-index db)) :key #'name)))
         (iter (for tag in (alexandria:ensure-list tags))
           (setf
            (gethash tag (tag-index db))
-           (remove n (gethash tag (tag-index db)) :key #'name)))))
+           (%decollect! n (gethash tag (tag-index db)) :key #'name)))))
   (ignore-errors (fmakunbound n))
   (ignore-errors (fmakunbound (test-thunk-name n))))
 
@@ -117,21 +168,25 @@
     (%log #?"Uninstalling test ${u}")
     (%uninstall-name n (tags u))))
 
-(defun get-tests (&key tests tags package
+(defun get-tests (&key tests tags package test-and-tags-package
                   &aux (db *test-db*))
-  (%log-around (#?"get-tests:${tests} tags:${tags} package:${package}"
+  "finds tests by names, tags, and package"
+  (%log-around (#?"get-tests:${tests} tags:${tags} package:${package} test-and-tags-package:${test-and-tags-package}"
                 :start-level 0)
+    (when test-and-tags-package
+      (setf tests (lisp-unit::%in-package tests test-and-tags-package))
+      (setf tags (lisp-unit::%in-package tags test-and-tags-package)))
     (cond
       ;; defaults to pulling up all tests in the current package
       ((and (null tests) (null tags) (null package))
-       (gethash *package* (package-index db)))
+       (head (gethash *package* (package-index db))))
       (t
        (remove-duplicates
         (append
          (iter (for p in (alexandria:ensure-list package))
-           (appending (gethash (find-package p) (package-index db))))
+           (appending (head (gethash (find-package p) (package-index db)))))
          (iter (for tag in (alexandria:ensure-list tags))
-           (appending (gethash tag (tag-index db))))
+           (appending (head (gethash tag (tag-index db)))))
          (iter (for name in (alexandria:ensure-list tests))
            (for test = (etypecase name
                          (null nil)
@@ -184,8 +239,7 @@
   (%log-around (#?"Compiling Test: ${ (name u) }" :start-level 0)
     (compile (test-thunk-name u)
              `(lambda ()
-               (declare (optimize (debug 3)))
-               ,(doc u) ,@(code u)))))
+               (declare (optimize (debug 3))) ,@(code u)))))
 
 
 (defun test-name-error-report (test-name-error stream)
@@ -232,24 +286,29 @@
       times tests and the functions they test, coexist (and always could in
       lisp-unit v1, now that we create test functions, we dont want them
       overwriting the original function).
+
+      Note: This should probably not be used (rather opting for
+      packaged::symbols), but will be useful when converting from lisp-unit
+      1->2.  See also: run-tests
   "
   (when package
     (setf name (%in-package name package)))
-  `(let ((unit-test
-          (make-instance 'unit-test
-           :name ',name
-           :doc ,(when (stringp (first body)) (first body))
-           :tags ,(if package
-                      `(%in-package ,tags ,package)
-                      tags)
-           :code '(,@body)
-           :context-provider (combine-contexts ,context-provider)
-           )))
+  `(progn
+    (install-test
+     (make-instance 'unit-test
+      :name ',name
+      :doc ,(when (stringp (first body)) (first body))
+      :tags ,(if package
+                 `(%in-package ,tags ,package)
+                 tags)
+      :code '(,@body)
+      :context-provider (combine-contexts ,context-provider)
+      ))
     (defun ,name (&key test-context-provider)
       (declare (optimize (debug 3)))
       "Runs this test, this fn is useful to help going to test definitions"
-      (%run-test unit-test :test-context-provider test-context-provider))
-    (install-test unit-test)))
+      (%run-test-name ',name :test-context-provider test-context-provider))
+    #',name))
 
 ;;; Manage tests
 
@@ -319,7 +378,7 @@
    'empty))
 
 (defmethod %has? (status thing
-                  &aux (n (length (funcall status thing))))
+                  &aux (n (len (funcall status thing))))
   (when (< 0 n) n))
 
 (defgeneric run-time (it)
@@ -338,7 +397,7 @@
 (defmethod initialize-instance :after
     ((ctl test-results-db) &key &allow-other-keys)
   (setf (slot-value ctl 'results)
-        (make-array (length (tests ctl)) :initial-element nil :fill-pointer 0)))
+        (make-array (len (tests ctl)) :initial-element nil :fill-pointer 0)))
 
 (defclass test-result (test-results-mixin)
   ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
@@ -349,7 +408,7 @@
   "Print the auto-print-items for this instance."
     (format s "#<RESULT ~A ~A(~d)>" (ignore-errors (short-full-symbol-name name))
             (ignore-errors (status o))
-            (ignore-errors (length (funcall (status o) o)))))
+            (ignore-errors (len (funcall (status o) o)))))
 
 (defgeneric passed-assertions (it)
   (:method ((n null)) n)
@@ -358,7 +417,7 @@
   (:method ((u test-results-db))
     (iter (for test-result in-vector (results u))
       (while test-result)
-      (appending (passed-assertions test-result)))))
+      (appending (head (passed-assertions test-result))))))
 
 (defgeneric failed-assertions (it)
   (:method ((n null)) n)
@@ -367,7 +426,7 @@
   (:method ((u test-results-db))
     (iter (for test-result in-vector (results u))
       (while test-result)
-      (appending (failed-assertions test-result)))))
+      (appending (head (failed-assertions test-result))))))
 
 (defgeneric all-warnings (it)
   (:method ((n null)) n)
@@ -376,16 +435,16 @@
   (:method ((u test-results-db))
     (iter (for test-result in-vector (results u))
       (while test-result)
-      (appending (warnings test-result)))))
+      (appending (head (warnings test-result))))))
 
 (defmethod print-object ((o test-results-db) stream)
   "Print the summary counts with the object."
   (print-unreadable-object (o stream :type t :identity t)
-    (let ((total (ignore-errors (length (tests o))))
-          (passed (ignore-errors (length (passed-assertions o))))
-          (failed (ignore-errors (length (failed-assertions o))))
-          (errors (ignore-errors (length (errors o))))
-          (warnings (ignore-errors (length (all-warnings o)))))
+    (let ((total (ignore-errors (len (tests o))))
+          (passed (ignore-errors (len (passed-assertions o))))
+          (failed (ignore-errors (len (failed-assertions o))))
+          (errors (ignore-errors (len (errors o))))
+          (warnings (ignore-errors (len (all-warnings o)))))
       (format stream "Tests:(~a) Passed:(~a) Failed:(~a) Errors:(~a) Warnings:(~a)"
               total passed failed errors warnings))))
 
@@ -434,28 +493,39 @@
            (cons res (funcall status db))
            db))
 
-(defgeneric run-tests (&key tests tags package test-context-provider)
+(defgeneric run-tests (&key tests tags package
+                       test-context-provider
+                       test-and-tags-package)
   (:documentation
    "Run the specified tests.
 
-   We run all the listed tests, and all tests tagged with tags.  If both test
-   and tags are nil (the default), then we run all tests in
-   package (defaulting to *package*)
+    We run all the listed tests, and all tests tagged with tags.  If both test
+    and tags are nil (the default), then we run all tests in
+    package (defaulting to *package*)
+
+    test-tags-package: when looking up tests, first reintern all tests and tags
+      in this package. In general this should probably not be used, but is provided
+      for convenience in transitioning from lisp-unit 1 to 2 (see: define-test package)
   ")
-  (:method :around (&key tests tags (package *package*) test-context-provider)
+  (:method :around (&key tests tags package test-context-provider
+                    test-and-tags-package)
+    (declare (ignore test-and-tags-package))
     (%log-around (#?"Running tests:${tests} tags:${tags} package:${package} context:${test-context-provider}")
       (call-next-method)))
   (:method (&key
-            tests tags (package *package*) test-context-provider
+            tests tags package test-context-provider test-and-tags-package
             &aux
-            (all-tests (get-tests :tests tests :tags tags :package package))
+            (all-tests (get-tests :tests tests
+                                  :tags tags
+                                  :package package
+                                  :test-and-tags-package test-and-tags-package))
             (results (make-instance 'test-results-db :tests all-tests))
             (*results* results))
     (%log #?"Running tests:${all-tests}" :level 0)
     (signal 'all-tests-start :results results)
     (unwind-protect
          (handler-bind ((missing-test
-                          (lambda (c) (push (test-name c) (missing results)))))
+                          (lambda (c) (%collect! (test-name c) (missing results)))))
            (iter (for test in all-tests)
              ;; this calls the test fn so the test source-location is
              ;;  available in stack traces
@@ -490,15 +560,14 @@
         (funcall body-fn))))
 
 #| ;; TODO: make this a test
-(defun test-body-thunk () (%log "Body" :level 5))
-(defun test-context-1 (body-fn)
-  (%log-around ("context-1" :start-level 5 :end-level 5)
-    (funcall body-fn)))
-(defun test-context-2 (body-fn)
-  (%log-around ("context-2" :start-level 5 :end-level 5)
-    (funcall body-fn)))
-(do-contexts #'test-body-thunk nil #'test-context-2 nil nil #'test-context-1 nil nil )
+
 |#
+
+(defun %run-test-name (u &key test-context-provider
+                         &aux (test (first (get-tests :tests u))))
+  (if test
+      (%run-test test :test-context-provider test-context-provider)
+      (warn 'missing-test :test-name u)))
 
 (defun %run-test
     (u &key test-context-provider
@@ -507,19 +576,20 @@
                      (make-instance 'test-result :unit-test u)))
        (*unit-test* u)
        (*result* result))
+  (check-type u unit-test)
   ;; todo: clear context-provider, data? so that it must be set via signal?
   ;; possibly in an unwind-protect region
   (signal 'test-start :unit-test u)
   (with-simple-restart (continue "Continue running the next test")
     (unwind-protect
          (handler-bind
-             ((assertion-pass (lambda (c) (push (assertion c) (passed result))))
-              (assertion-fail (lambda (c) (push (failure c) (failed result))))
+             ((assertion-pass (lambda (c) (%collect! (assertion c) (passed result))))
+              (assertion-fail (lambda (c) (%collect! (failure c) (failed result))))
               (error (lambda (c)
-                       (push c (errors result))
+                       (%collect! c (errors result))
                        (unless *debugger-hook*
                          (return-from %run-test result))))
-              (warning (lambda (c) (push c (warnings result)))))
+              (warning (lambda (c) (%collect! c (warnings result)))))
            ;; run the test code
            (setf (return-value result)
                  (do-contexts (test-thunk u)
@@ -535,7 +605,7 @@
   (:method ((n symbol) &key test-context-provider )
     (funcall n :test-context-provider test-context-provider))
   (:method :around ((u symbol) &key test-context-provider)
-    (%log-around (#?"Running Test:${(name u)} context:${test-context-provider}")
+    (%log-around (#?"Running Test:${ u } context:${test-context-provider}")
       (call-next-method)))
   (:method ((u unit-test) &key test-context-provider)
     (run-test (name u) :test-context-provider test-context-provider)))
@@ -557,7 +627,7 @@ vice versa."
    (apply #'subsetp list1 list2 initargs)
    (apply #'subsetp list2 list1 initargs)))
 
-(pushnew :lisp-unit-2 common-lisp:*features*)
+(pushnew :lisp-unit2 common-lisp:*features*)
 
 
 #|

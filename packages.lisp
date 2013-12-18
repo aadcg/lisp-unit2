@@ -48,6 +48,8 @@
     (:export
      :with-summary
      :with-summary-context
+     :with-assertion-summary
+     :with-assertion-summary-context
      :test-names
      :print-summary
      :print-status-summary

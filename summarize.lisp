@@ -2,35 +2,55 @@
 (in-package :lisp-unit)
 (cl-interpol:enable-interpol-syntax)
 
+(defun with-assertion-summary-context (body-fn &aux (*print-pretty* t) rtn)
+  (format *test-stream* "~%~0I")
+  (pprint-logical-block (*test-stream* nil)
+    (handler-bind
+        ((assertion-pass
+           (lambda (c) (format *test-stream* "~@:_~A:Passed ~A"
+                          (short-full-symbol-name (name (unit-test c)))
+                          (assertion c))))
+         (assertion-fail
+           (lambda (c) (%print-summary (failure c)))))
+      (setf rtn (multiple-value-list (funcall body-fn))))
+    (format *test-stream* "~0I~%"))
+  (apply #'values rtn))
+
 (defun with-summary-context (body-fn &aux (*print-pretty* t) rtn)
+  (format *test-stream* "~%~0I")
   (pprint-logical-block (*test-stream* nil)
     (handler-bind
         ((test-start
-           (lambda (c) (format *test-stream* "~@:_Starting: ~A" (name (unit-test c)))))
+           (lambda (c) (format *test-stream* "~@:_Starting: ~A"
+                          (short-full-symbol-name (name (unit-test c))))))
          (all-tests-complete
            (lambda (c) (%print-result-summary (results c))))
          (test-complete (lambda (c) (%print-summary (result c)))))
-      (setf rtn (multiple-value-list (funcall body-fn)))))
+      (setf rtn (multiple-value-list (funcall body-fn))))
+    (format *test-stream* "~0I~%"))
   (apply #'values rtn))
 
 (defmacro with-summary (() &body body)
   `(with-summary-context (lambda () ,@body)))
+
+(defmacro with-assertion-summary (() &body body)
+  `(with-assertion-summary-context (lambda () ,@body)))
 
 (defparameter *status-prefix* "~@:_  |  ")
 
 (defun %out (s &rest args
                &aux (prefix (alexandria:ensure-list *status-prefix*))
                (*print-pretty* t))
-  (format *test-stream* "~?~?" (first prefix) (rest prefix) s args))
+  (format *test-stream* "~?~?" (first prefix) (rest prefix) (or s "") args))
 
 (defmethod %print-result-summary ((o test-results-db))
-  (let ((total (length (tests o)))
-        (passed (length (passed-assertions o)))
-        (failed (length (failed-assertions o)))
-        (errors (length (errors o)))
-        (warnings (length (all-warnings o)))
-        (empty (length (empty o)))
-        (missing (length (missing o))))
+  (let ((total (len (tests o)))
+        (passed (len (passed-assertions o)))
+        (failed (len (failed-assertions o)))
+        (errors (len (errors o)))
+        (warnings (len (all-warnings o)))
+        (empty (len (empty o)))
+        (missing (len (missing o))))
     (format *test-stream* "~@:_Test Summary (~D tests ~D sec)~@:_" total (run-time o))
     (format *test-stream* "  | ~D assertions total~@:_" (+ passed failed))
     (format *test-stream* "  | ~D passed~@:_" passed)
@@ -57,7 +77,7 @@
     (format *test-stream* "~@:_~A - ~A (~ds) : ~S assertions passed"
             (name (unit-test run)) (status run)
             (- (end-time run) (start-time run))
-            (length (passed run)))
+            (len (passed run)))
     (iter (for s in '(errors failed warnings))
       (print-status-summary run s))
     (format *test-stream* "~@:_")
@@ -66,8 +86,10 @@
     (%out "Failed Form: ~S" (form result))
     (call-next-method)
     (when (extras result)
-      (iter (for e in (extras result))
-        (%out "~S => ~S")))
+      (iter (for (f v) on (extras result) by #'cddr)
+        (if (equalp f v)
+            (%out f)
+            (%out "~S => ~S" f v))))
     (%out "")
     result)
 
@@ -115,12 +137,16 @@
 (defgeneric print-status-summary (object status)
   (:method ((db test-results-db) s &aux (objs (funcall s db)))
     (when objs
-      (iter (for o in objs)
+      (iter (for o in (typecase objs
+                        (list objs)
+                        (list-collector (head objs))))
         (print-status-summary o s))))
   (:method ((o test-result) s &aux (objs (funcall s o)))
     (when objs
-      (%out "~A (~D)" s (length objs))
-      (iter (for o in objs)
+      (%out "~A (~D)" s (len objs))
+      (iter (for o in (typecase objs
+                        (list objs)
+                        (list-collector (head objs))))
         (%print-summary o))
       (%out "---------------------------"))
     ))
