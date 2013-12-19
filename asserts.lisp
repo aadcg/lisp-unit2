@@ -74,7 +74,7 @@
     (lambda () ,expected)
     (expand-extras ,extras)
     ,test
-    :full-form '(,type ,form ,expected)))
+    :full-form '(,type ,expected ,form)))
 
 (defmacro expand-error-form (form)
   "Wrap the error assertion in HANDLER-CASE."
@@ -235,16 +235,21 @@
    (failure :accessor failure :initarg :failure :initform nil)))
 
 (defun internal-assert
-       (type form code-thunk expected-thunk extras test
-        &key full-form)
+    (type form code-thunk expected-thunk extras test &key full-form)
   "Perform the assertion and record the results."
   (let* ((actual (multiple-value-list (funcall code-thunk)))
          (expected (multiple-value-list (funcall expected-thunk)))
          (result (assert-result type test expected actual)))
-    (if result
-        (signal 'assertion-pass :unit-test *unit-test* :assertion full-form)
-        (signal 'assertion-fail :unit-test *unit-test* :assertion form
-                :failure (record-failure type full-form actual expected
-                                         (when extras (funcall extras)) test)))
+    (with-simple-restart (abort "Cancel this assertion")
+      (if result
+          (signal 'assertion-pass
+                  :unit-test *unit-test*
+                  :assertion (or full-form form))
+          (signal
+           'assertion-fail
+           :unit-test *unit-test* :assertion (or full-form form)
+           :failure (record-failure
+                     type full-form actual expected
+                     (when extras (funcall extras)) test))))
     ;; Return the result
     result))

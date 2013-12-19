@@ -65,6 +65,7 @@
         (for (this . next) = cons)
         (for prev previous cons)
         (when (funcall test it (funcall key this))
+          (decf (len o))
           (cond
             ((null prev)
              (setf (head o) next))
@@ -91,8 +92,6 @@
 
 (defparameter *test-db* (make-instance 'test-database)
   "The unit test database is a list of tests and some hashtable indexes")
-
-
 
 ;;; Global unit test database
 (defclass unit-test-control-mixin ()

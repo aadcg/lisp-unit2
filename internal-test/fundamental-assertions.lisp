@@ -1,44 +1,13 @@
-#|
-
- LISP-UNIT Internal Tests
-
- Copyright (c) 2010-2012, Thomas M. Hermann
- All rights reserved.
-
- Redistribution and  use  in  source  and  binary  forms, with or without
- modification, are permitted  provided  that the following conditions are
- met:
-
-   o  Redistributions of  source  code  must  retain  the above copyright
-      notice, this list of conditions and the following disclaimer.
-   o  Redistributions in binary  form  must reproduce the above copyright
-      notice, this list of  conditions  and  the  following disclaimer in
-      the  documentation  and/or   other   materials  provided  with  the
-      distribution.
-   o  The names of the contributors may not be used to endorse or promote
-      products derived from this software without  specific prior written
-      permission.
-
- THIS SOFTWARE IS  PROVIDED  BY  THE  COPYRIGHT  HOLDERS AND CONTRIBUTORS
- "AS IS"  AND  ANY  EXPRESS  OR  IMPLIED  WARRANTIES, INCLUDING,  BUT NOT
- LIMITED TO, THE IMPLIED WARRANTIES  OF MERCHANTABILITY AND FITNESS FOR A
- PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
- OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- EXEMPLARY, OR  CONSEQUENTIAL  DAMAGES  (INCLUDING,  BUT  NOT LIMITED TO,
- PROCUREMENT OF  SUBSTITUTE  GOODS  OR  SERVICES;  LOSS  OF USE, DATA, OR
- PROFITS; OR BUSINESS INTERRUPTION)  HOWEVER  CAUSED AND ON ANY THEORY OF
- LIABILITY, WHETHER  IN  CONTRACT,  STRICT  LIABILITY, OR TORT (INCLUDING
- NEGLIGENCE OR  OTHERWISE)  ARISING  IN  ANY  WAY  OUT OF THE USE OF THIS
- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-|#
-
-(in-package :lisp-unit)
+(in-package :lisp-unit-tests)
 
 ;;; Internal utility functions
 
 (defun %expansion-equal (form1 form2)
   "Descend into the forms checking for equality."
+  ;; TODO: Document what this is doing, nested recusive equality
+  ;; checks hurt my brain, it seems to be checking that all the symbols
+  ;; in the form are the same when printed, and that the list structure
+  ;; is the same... why not just print and compare strings?
   (let ((item1 (first form1))
         (item2 (first form2)))
     (cond
@@ -57,13 +26,43 @@
     (%expansion-equal (macroexpand-1 macro-form) expansion)))
 
 (defun test-macro-expansions (expansions)
-  "Test each fundamental assertion and report the results."
+  "Test each fundamental assertion and report the results.
+   basically for if lisp-unit is too broken to test itself"
   (loop for (assertion macro-form expansion) in expansions collect
         (list assertion (expansion-equal macro-form expansion))))
 
-;;; Expansions
+(defun test-all-macro-expansions ()
+  (iter
+    (for it in (list *expansion-macros*
+                         *expand-assert-expansions*
+                         *fundamental-assertion-expansions*))
+    (appending (test-macro-expansions it))))
 
-(defvar *expand-assert-expansions*
+(defun assert-macro-expansions (expansions)
+  (loop for (assertion macro-form expansion) in expansions
+        do (assert-true (let ((*gensym-counter* 1))
+                          (%expansion-equal
+                           (macroexpand-1 macro-form)
+                           expansion))
+                        assertion
+                        (%expansion-equal macro-form expansion)
+                        macro-form
+                        (macroexpand-1 macro-form)
+                        expansion)))
+
+(define-test fundamental-assertions-macros (:tags '(assertions))
+  (assert-macro-expansions *expansion-macros*))
+(define-test fundamental-assertions-asserts (:tags '(assertions))
+  (assert-macro-expansions *expand-assert-expansions*))
+(define-test fundamental-assertions-assertion-expansions (:tags '(assertions))
+  (assert-macro-expansions *fundamental-assertion-expansions*))
+
+
+
+;;; Expansions
+(in-package :lisp-unit)
+
+(defparameter lisp-unit-tests::*expand-assert-expansions*
   '(("EXPAND-ASSERT-BASIC"
      (expand-assert
       :equal form form expected (extra1 extra2) :test #'eq)
@@ -109,7 +108,7 @@
                       (FUNCTION EQL))))
   "The correct expansions for the expand-assert macro.")
 
-(defvar *expansion-macros*
+(defparameter lisp-unit-tests::*expansion-macros*
   '(("EXPAND-ERROR-FORM"
      (expand-error-form form)
      (HANDLER-CASE FORM (CONDITION (ERROR) ERROR)))
@@ -128,7 +127,7 @@
      (LAMBDA NIL (LIST (QUOTE EXTRA1) EXTRA1 (QUOTE EXTRA2) EXTRA2))))
   "The correct expansions for macros that expand forms.")
 
-(defvar *fundamental-assertion-expansions*
+(defparameter lisp-unit-tests::*fundamental-assertion-expansions*
   '(("ASSERT-EQ"
      (assert-eq expected form extra1 extra2)
      (EXPAND-ASSERT
@@ -168,3 +167,38 @@
      (assert-true form extra1 extra2)
      (EXPAND-ASSERT :RESULT FORM FORM T (EXTRA1 EXTRA2))))
   "The correct expansions for the fundamental assertions.")
+
+#|
+
+ LISP-UNIT Internal Tests
+
+ Copyright (c) 2010-2012, Thomas M. Hermann
+ All rights reserved.
+
+ Redistribution and  use  in  source  and  binary  forms, with or without
+ modification, are permitted  provided  that the following conditions are
+ met:
+
+   o  Redistributions of  source  code  must  retain  the above copyright
+      notice, this list of conditions and the following disclaimer.
+   o  Redistributions in binary  form  must reproduce the above copyright
+      notice, this list of  conditions  and  the  following disclaimer in
+      the  documentation  and/or   other   materials  provided  with  the
+      distribution.
+   o  The names of the contributors may not be used to endorse or promote
+      products derived from this software without  specific prior written
+      permission.
+
+ THIS SOFTWARE IS  PROVIDED  BY  THE  COPYRIGHT  HOLDERS AND CONTRIBUTORS
+ "AS IS"  AND  ANY  EXPRESS  OR  IMPLIED  WARRANTIES, INCLUDING,  BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES  OF MERCHANTABILITY AND FITNESS FOR A
+ PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+ OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ EXEMPLARY, OR  CONSEQUENTIAL  DAMAGES  (INCLUDING,  BUT  NOT LIMITED TO,
+ PROCUREMENT OF  SUBSTITUTE  GOODS  OR  SERVICES;  LOSS  OF USE, DATA, OR
+ PROFITS; OR BUSINESS INTERRUPTION)  HOWEVER  CAUSED AND ON ANY THEORY OF
+ LIABILITY, WHETHER  IN  CONTRACT,  STRICT  LIABILITY, OR TORT (INCLUDING
+ NEGLIGENCE OR  OTHERWISE)  ARISING  IN  ANY  WAY  OUT OF THE USE OF THIS
+ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+|#
