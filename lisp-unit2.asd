@@ -13,12 +13,9 @@
    (:file "asserts")
    (:file "lisp-unit")
    (:file "summarize")
-   (:module extensions
-    :depends-on ("lisp-unit")
-    :serial t
-    :components ((:file "rational")
-                 (:file "floating-point")
-                 (:file "test-anything-protocol"))))
+   (:file "rational")
+   (:file "floating-point")
+   (:file "test-anything-protocol"))
   :depends-on (:alexandria :cl-interpol :iterate :symbol-munger))
 
 (defsystem :lisp-unit2-test
@@ -28,7 +25,6 @@
            Thomas M. Hermann <thomas.m.hermann@odonata-research.com>"
   :license "MIT"
   :serial t
-  :depends-on :lisp-unit2
   :components
   ((:module "internal-test"
     :serial t
@@ -36,7 +32,7 @@
                  (:file "basics")
                  (:file "floating-point")
                  (:file "example-tests"))))
-  :depends-on (:alexandria :cl-interpol :iterate :symbol-munger))
+  :depends-on (:lisp-unit2))
 
 
 #|
