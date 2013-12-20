@@ -24,6 +24,8 @@
      :norm-equal :assert-norm-equal
      :number-equal :assert-number-equal
      :numerical-equal :assert-numerical-equal
+     ;; rational
+     :assert-rational-equal :rational-equal
      )
     ;; Functions for managing tests
     (:export
@@ -69,7 +71,7 @@
 
   (defpackage :lisp-unit-asserts
     (:import-from :lisp-unit
-      :assert-eq :assert-eql :assert-equal :assert-equalp
+     :assert-eq :assert-eql :assert-equal :assert-equalp
      :assert-equality :assert-prints :assert-expands :assert-true
      :assert-false :assert-error :assert-warning :assert-no-warning
      ;; floating point
@@ -81,7 +83,9 @@
      :sigfig-equal :assert-sigfig-equal
      :norm-equal :assert-norm-equal
      :number-equal :assert-number-equal
-     :numerical-equal :assert-numerical-equal)
+     :numerical-equal :assert-numerical-equal
+     ;; rational
+     :assert-rational-equal :rational-equal)
     (:export
      :assert-eq :assert-eql :assert-equal :assert-equalp
      :assert-equality :assert-prints :assert-expands :assert-true
@@ -96,5 +100,7 @@
      :norm-equal :assert-norm-equal
      :number-equal :assert-number-equal
      :numerical-equal :assert-numerical-equal
+     ;; rational
+     :assert-rational-equal :rational-equal
      ))
   )
