@@ -21,9 +21,9 @@
       (decode-universal-time time)
     (format nil "~d~2,'0d~2,'0d-~2,'0d~2,'0d~2,'0d"  y mon d h min s)))
 
-(defun %log (message &key (level 0))
+(defmacro %log (message &key (level 0))
   (when (<= *log-level* level)
-    (format *test-log-stream* "~&~A ~A~%" (%ts) message)))
+    `(format *test-log-stream* "~&~A ~A~%" (%ts) ,message)))
 
 (defmacro %log-around ((message &key (start-level 1) (end-level 0)) &body body)
   `(unwind-protect
@@ -508,7 +508,8 @@
   ")
   (:method :around (&key tests tags package test-context-provider
                     test-and-tags-package)
-    (declare (ignore test-and-tags-package))
+    (declare (ignorable tests tags package test-context-provider
+                        test-and-tags-package))
     (%log-around (#?"Running tests:${tests} tags:${tags} package:${package} context:${test-context-provider}")
       (call-next-method)))
   (:method (&key
@@ -604,6 +605,7 @@
   (:method ((n symbol) &key test-context-provider )
     (funcall n :test-context-provider test-context-provider))
   (:method :around ((u symbol) &key test-context-provider)
+    (declare (ignorable u test-context-provider))
     (%log-around (#?"Running Test:${ u } context:${test-context-provider}")
       (call-next-method)))
   (:method ((u unit-test) &key test-context-provider)
