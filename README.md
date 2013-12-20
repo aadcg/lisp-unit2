@@ -7,16 +7,21 @@ is a long history of testing packages in Lisp, usually called
 have been inspired by [JUnit for Java][JUnit].
 
 Recently longtime users at Acceleration.net felt motivated to refactor
-significantly, trying to make some sweeping improvments
+significantly, attempting to make some broad improvements to the library
+while maintaining its benefits and workflow
 
 ### Features
 * Written in portable Common Lisp
 * Loadable with [ASDF] or [Quicklisp]
 * Simple to define and run tests
 * Redfine functions and macros without reloading tests - tests are
-  recompiled before each run
-* Test return values, printed output, macro expansions, and conditions
-* Store all test results in a database object that can be examined
+  recompiled before each run and at definition time
+* Tests have source-location for going to definition
+* Supports testing: return values, printed output, macro expansions,
+  and conditions.  Special support for testing floating and rational
+  point numbers
+* Running a single test returns a test-result object. Running many
+  tests returns a test-result-db
 * Tests grouped and accessed by name, tag, and package of test name
 * Signals for starting and completing test runs (both individually and
   as a group)
@@ -52,9 +57,7 @@ significantly, trying to make some sweeping improvments
   the test (and while running it)
 
 
-### Extensions
 
-* Floating point predicates
 
 ### How to use lisp-unit
 
@@ -89,17 +92,10 @@ significantly, trying to make some sweeping improvments
 
 See the internal test suite for more and better examples (internal-test/*)
 
-
-
-
 ##  Remaining Tasks
-
 *  Expanded internal testing.
 
 ### Future Features
-
-* Fixtures
-* Test Suites
 * Benchmarking tools
 
 [orig]: <http://www.cs.northwestern.edu/academics/courses/325/readings/lisp-unit.html>
