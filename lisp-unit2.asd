@@ -34,7 +34,6 @@
     :serial t
     :components ((:file "packages")
                  (:file "basics")
-                 (:file "fundamental-assertions")
                  (:file "floating-point")
                  (:file "example-tests"))))
   :depends-on (:alexandria :cl-interpol :iterate :symbol-munger))
