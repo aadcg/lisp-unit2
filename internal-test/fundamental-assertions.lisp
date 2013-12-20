@@ -2,34 +2,41 @@
 
 ;;; Internal utility functions
 
-(defun %expansion-equal (form1 form2)
-  "Descend into the forms checking for equality."
-  ;; TODO: Document what this is doing, nested recusive equality
-  ;; checks hurt my brain, it seems to be checking that all the symbols
-  ;; in the form are the same when printed, and that the list structure
-  ;; is the same... why not just print and compare strings?
-  (let ((item1 (first form1))
-        (item2 (first form2)))
-    (cond
-     ((and (null item1) (null item2)))
-     ((and (listp item1) (listp item2))
-      (and (%expansion-equal item1 item2)
-           (%expansion-equal (rest form1) (rest form2))))
-     ((and (symbolp item1) (symbolp item2))
-      (and (string= (symbol-name item1) (symbol-name item2))
-           (%expansion-equal (rest form1) (rest form2))))
-     (t nil))))
+(defun %form-equal (form1 form2 &aux (invalid `(/= ,form1 ,form2)))
+  "Descend into the forms checking for equality.
+   The first unequal part is the second value"
+  (typecase form1
+    (null t)
+    (string ;; strings should match
+     (or (ignore-errors (string= form1 form2))
+         (values nil invalid)))
+
+    (symbol ;; symbols should be name equall
+     (or (ignore-errors
+          (string= (symbol-name form1) (symbol-name form2)))
+         (values nil `(/= ,form1 ,form2))))
+
+    (list ;; lists need to match by recursion
+     (multiple-value-bind (res inv)
+         (ignore-errors (%form-equal (first form1) (first form2)))
+       (if res
+           (%form-equal (rest form1) (rest form2))
+           (values nil inv invalid))))
+    (t ;; everything else should be trivially eql
+     (or (eql form1 form2)
+         (values nil invalid)))))
 
 (defun expansion-equal (macro-form expansion)
   "MACROEXPAND-1 the macro-form and compare with the expansion."
   (let ((*gensym-counter* 1))
-    (%expansion-equal (macroexpand-1 macro-form) expansion)))
+    (%form-equal (macroexpand-1 macro-form) expansion)))
 
 (defun test-macro-expansions (expansions)
   "Test each fundamental assertion and report the results.
    basically for if lisp-unit is too broken to test itself"
   (loop for (assertion macro-form expansion) in expansions collect
-        (list assertion (expansion-equal macro-form expansion))))
+        (list* assertion (multiple-value-list
+                          (expansion-equal macro-form expansion)))))
 
 (defun test-all-macro-expansions ()
   (iter
