@@ -1,3 +1,6 @@
+(in-package :lisp-unit2)
+(cl-interpol:enable-interpol-syntax)
+
 (defgeneric head (l)
   (:method (l) (car l)))
 (defgeneric tail (l)

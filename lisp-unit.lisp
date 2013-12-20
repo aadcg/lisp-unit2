@@ -3,15 +3,16 @@
 (in-package :lisp-unit2)
 (cl-interpol:enable-interpol-syntax)
 
-(defvar *test-stream* *standard-output*)
-(defvar *test-log-stream* *test-stream*)
-(defvar *unit-test* nil
-  "The currently executing unit test (bound in %run-test, ie every test
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defvar *test-stream* *standard-output*)
+  (defvar *test-log-stream* *test-stream*)
+  (defvar *unit-test* nil
+    "The currently executing unit test (bound in %run-test, ie every test
   function)" )
-(defvar *results* nil "The current results database (bound in run-tests)")
-(defvar *result* nil "The current test result  (bound in %run-test)")
+  (defvar *results* nil "The current results database (bound in run-tests)")
+  (defvar *result* nil "The current test result  (bound in %run-test)")
 
-(defparameter *log-level* 5)
+  (defparameter *log-level* 5))
 
 (defun %ts (&optional (time (get-universal-time)))
   "returns a date as {y}{mon}{d}-{h}{min}{s}, defaults to get-universal-time

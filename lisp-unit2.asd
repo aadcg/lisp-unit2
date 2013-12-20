@@ -37,7 +37,7 @@
 
 (defmethod asdf:perform ((o asdf:test-op) (c (eql (find-system :lisp-unit2))))
   (asdf:load-system :lisp-unit2-test)
-  (let ((*package* (find-package :lisp-unit-tests)))
+  (let ((*package* (find-package :lisp-unit2-tests)))
     (eval (read-from-string "(with-summary () (run-tests))"))))
 
 
