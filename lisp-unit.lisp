@@ -354,6 +354,11 @@
 
 ;;; Test results database
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter +statuses+
+    '(errors failed warnings passed missing empty)
+    "List of statuses in order of priority for categorizing test runs"))
+
 (defclass test-results-mixin ()
   #.`((start-time :accessor start-time :initarg :start-time
                   :initform (get-universal-time))
@@ -361,12 +366,7 @@
       ;; SORRY want to keep this in sync with the +statuses, with minimal
       ;; shenanigans
       ,@(iter
-          (for s in
-               (symbol-value
-                (defparameter +statuses+
-                  '(errors failed warnings passed missing empty)
-                  "List of statuses in order of priority for
-                   categorizing test runs")))
+          (for s in +statuses+)
           (collect `(,s :accessor ,s :initform nil)))))
 
 (defun status ( u )

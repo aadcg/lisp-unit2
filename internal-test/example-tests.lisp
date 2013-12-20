@@ -113,12 +113,15 @@
     (check-type complex2 complex)
     (- complex1 complex2))
 
-  (define-test add-complex-test (:tags '(add complex examples))
-    "Test add-complex for values and errors."
-    (assert-eql #C(3 5) (add-complex #C(1 2) #C(2 3)))
-    (let ((i 0));; warning
-      (assert-error 'type-error (add-integer #C(1 2) 3)))
-    (assert-error 'type-error (add-integer 1 #C(2 3))))
+  (handler-bind ((warning #'muffle-warning))
+    (define-test add-complex-test (:tags '(add complex examples))
+      "Test add-complex for values and errors."
+      (assert-eql #C(3 5) (add-complex #C(1 2) #C(2 3)))
+      ;; TODO: would be nice if this compiler warning didnt
+      ;; show in the output :/
+      (let ((i 0))                      ;; warning
+        (assert-error 'type-error (add-integer #C(1 2) 3)))
+      (assert-error 'type-error (add-integer 1 #C(2 3)))))
 
   (define-test subtract-complex-test (:tags '(subtract complex examples))
     "Test subtract-complex for values and errors."

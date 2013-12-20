@@ -34,6 +34,11 @@
                  (:file "example-tests"))))
   :depends-on (:lisp-unit2))
 
+(defmethod asdf:perform ((o asdf:test-op) (c (eql (find-system :lisp-unit2))))
+  (asdf:load-system :lisp-unit2-test)
+  (let ((*package* (find-package :lisp-unit-tests)))
+    (eval (read-from-string "(with-summary () (run-tests))"))))
+
 
 #|
   Copyright (c) 2013, Russ Tyndall, Acceleration.net
