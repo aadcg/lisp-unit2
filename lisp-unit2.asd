@@ -10,6 +10,7 @@
   :serial t
   :components
   ((:file "packages")
+   (:file "collectors")
    (:file "asserts")
    (:file "lisp-unit")
    (:file "summarize")
