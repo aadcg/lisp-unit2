@@ -1,7 +1,7 @@
 ;;;; -*- Mode: Lisp; Syntax: ANSI-Common-Lisp -*-
 ;;;; SEE Copyright below
 
-(in-package :lisp-unit)
+(in-package :lisp-unit2)
 
 ;;; Symbols exported from the TAP extension
 

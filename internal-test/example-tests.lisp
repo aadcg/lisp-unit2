@@ -1,12 +1,12 @@
 ;;  LISP-UNIT Example Tests
 
-(in-package :lisp-unit-tests)
+(in-package :lisp-unit2-tests)
 
-(defparameter *example-db* (make-instance 'lisp-unit::test-database))
+(defparameter *example-db* (make-instance 'lisp-unit2::test-database))
 
 
 
-(let ((lisp-unit::*test-db* *example-db*))
+(let ((lisp-unit2::*test-db* *example-db*))
 
   (defun false-max (x y)
     "Deliberately wrong"
@@ -131,9 +131,9 @@
   ) ;; finish example-database-construction
 
 (defun meta-test-context (body-fn)
-  (let ((lisp-unit::*test-db* *example-db*)
+  (let ((lisp-unit2::*test-db* *example-db*)
         *debugger-hook*
-        (lisp-unit::*test-stream* (make-broadcast-stream)))
+        (lisp-unit2::*test-stream* (make-broadcast-stream)))
       (handler-bind ((warning #'muffle-warning))
         (funcall body-fn))))
 
@@ -141,33 +141,33 @@
   `(meta-test-context
     (lambda () ,@body)))
 
-(defun %run-meta-tags (tags &aux (lisp-unit::*test-db* *example-db*))
-  (handler-bind ((lisp-unit::assertion-pass #'abort)
-                 (lisp-unit::assertion-fail #'abort))
-    (lisp-unit:run-tests :tags tags)))
+(defun %run-meta-tags (tags &aux (lisp-unit2::*test-db* *example-db*))
+  (handler-bind ((lisp-unit2::assertion-pass #'abort)
+                 (lisp-unit2::assertion-fail #'abort))
+    (lisp-unit2:run-tests :tags tags)))
 
 (define-test test-failing-assertions (:tags '(meta-tests)
                                       :context-provider #'meta-test-context)
   (let ((res (%run-meta-tags 'failed)))
-    (assert-eql 1 (len (lisp-unit::tests res)))
-    (assert-eql 3 (len (lisp-unit::failed-assertions res)))
-    (assert-eql 1 (len (lisp-unit::passed-assertions res)))
-    (assert-eql 0 (len (lisp-unit::errors res)))))
+    (assert-eql 1 (len (lisp-unit2::tests res)))
+    (assert-eql 3 (len (lisp-unit2::failed-assertions res)))
+    (assert-eql 1 (len (lisp-unit2::passed-assertions res)))
+    (assert-eql 0 (len (lisp-unit2::errors res)))))
 
 (define-test test-erroring-unit-tests (:tags '(meta-tests)
                                        :context-provider #'meta-test-context)
   (let ((res (%run-meta-tags 'errors)))
-    (assert-eql 1 (len (lisp-unit::tests res)))
-    (assert-eql 1 (len (lisp-unit::errors res)))))
+    (assert-eql 1 (len (lisp-unit2::tests res)))
+    (assert-eql 1 (len (lisp-unit2::errors res)))))
 
 (define-test meta-tests (:tags '(meta-tests)
                          :context-provider #'meta-test-context)
   (let ((res (%run-meta-tags nil)))
-    (assert-eql 10 (len (lisp-unit::tests res)))
-    (assert-eql 6 (len (lisp-unit::failed-assertions res)))
-    (assert-eql 22 (len (lisp-unit::passed-assertions res)))
-    (assert-eql 1 (len (lisp-unit::errors res)))
-    (assert-eql 1 (len (lisp-unit::warnings res)))))
+    (assert-eql 10 (len (lisp-unit2::tests res)))
+    (assert-eql 6 (len (lisp-unit2::failed-assertions res)))
+    (assert-eql 22 (len (lisp-unit2::passed-assertions res)))
+    (assert-eql 1 (len (lisp-unit2::errors res)))
+    (assert-eql 1 (len (lisp-unit2::warnings res)))))
 
 
 #|

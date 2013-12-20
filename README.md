@@ -69,7 +69,7 @@ while maintaining its benefits and workflow
    same name. (Tests are compiled to a function named after the test
    that runs it and an object in the test database)
 ```
-(lisp-unit:define-test my-tests::test-subtraction 
+(lisp-unit2:define-test my-tests::test-subtraction 
     (:tags '(my-tests::bar))
   (assert-eql 1 (- 2 1)))
 ```

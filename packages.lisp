@@ -5,7 +5,7 @@
     ((warning (lambda (c)
                 (format *error-output* "~A~%~S" c c)
                 (muffle-warning c))))
-  (defpackage :lisp-unit
+  (defpackage :lisp-unit2
     (:use :common-lisp :iter)
     ;; Print parameters
     (:export #:*test-stream*)
@@ -69,8 +69,8 @@
     ;; Utility predicates
     (:export :logically-equal :set-equal))
 
-  (defpackage :lisp-unit-asserts
-    (:import-from :lisp-unit
+  (defpackage :lisp-unit2-asserts
+    (:import-from :lisp-unit2
      :assert-eq :assert-eql :assert-equal :assert-equalp
      :assert-equality :assert-prints :assert-expands :assert-true
      :assert-false :assert-error :assert-warning :assert-no-warning

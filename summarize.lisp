@@ -1,5 +1,5 @@
 ;;;-*- Mode: Lisp; Syntax: ANSI-Common-Lisp -*-
-(in-package :lisp-unit)
+(in-package :lisp-unit2)
 (cl-interpol:enable-interpol-syntax)
 
 (defun with-assertion-summary-context (body-fn &aux (*print-pretty* t) rtn)

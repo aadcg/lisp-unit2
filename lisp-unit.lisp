@@ -1,6 +1,6 @@
 ;;;-*- Mode: Lisp; Syntax: ANSI-Common-Lisp -*-
 
-(in-package :lisp-unit)
+(in-package :lisp-unit2)
 (cl-interpol:enable-interpol-syntax)
 
 (defvar *test-stream* *standard-output*)
@@ -173,8 +173,8 @@
   (%log-around (#?"get-tests:${tests} tags:${tags} package:${package} test-and-tags-package:${test-and-tags-package}"
                 :start-level 0)
     (when test-and-tags-package
-      (setf tests (lisp-unit::%in-package tests test-and-tags-package))
-      (setf tags (lisp-unit::%in-package tags test-and-tags-package)))
+      (setf tests (%in-package tests test-and-tags-package))
+      (setf tags (%in-package tags test-and-tags-package)))
     (cond
       ;; defaults to pulling up all tests in the current package
       ((and (null tests) (null tags) (null package))

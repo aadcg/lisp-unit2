@@ -1,4 +1,4 @@
-(in-package :lisp-unit)
+(in-package :lisp-unit2)
 
 ;;; Assert macros
 

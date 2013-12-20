@@ -1,4 +1,4 @@
-(in-package :lisp-unit-tests)
+(in-package :lisp-unit2-tests)
 
 ;;; List norms
 
