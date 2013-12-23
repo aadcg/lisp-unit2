@@ -32,14 +32,10 @@ is the same before and after invocation."
               (run-time test-result))
       (when not-ok?
         ;; indent only takes affect after a newline, so force one
-        (format *test-stream* "~2I~@:_---~4I~@:_")
-        ;; our tap parser complains about #\: not sure if its a bug with the parser
-        (let ((out (remove #\:
-                    (with-output-to-string (*test-stream*)
-                     (print-summary test-result))
-                    :test #'equal)))
-          (princ out *test-stream*))
-        (format *test-stream* "~@:_..."))
+        (format *test-stream* "~4I~@:_")
+        (print-summary test-result)
+        (format *test-stream* "~@:_")
+        )
       ;; always reset to zero and force a newline
       (format *test-stream* "~0I~@:_"))))
 
