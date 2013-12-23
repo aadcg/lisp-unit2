@@ -41,6 +41,7 @@
      :remove-tests
      :run-tests
      :run-test
+     :reset-test-database
 
      :unit-test :*unit-test*)
     ;; Functions for managing tags

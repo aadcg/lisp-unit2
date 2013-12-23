@@ -28,7 +28,10 @@
    (package-index :accessor package-index :initarg :package-index :initform (make-hash-table))
    (tag-index :accessor tag-index :initarg :tag-index :initform (make-hash-table))))
 
-(unless *test-db* (setf *test-db* (make-instance 'test-database)))
+(defun reset-test-database ()
+  (setf *test-db* (make-instance 'test-database)))
+
+(unless *test-db* (reset-test-database))
 
 (defmethod tests ((db test-database))
   (head (%tests db)))

@@ -49,3 +49,7 @@
          '((1 () 2) (a b) ()))
     (nfe? '((1 () 2) (a b) ())
           '((1 () 2) (a b)))))
+
+(define-test %broken (:tags '(broken))
+  (warn "WARN_MSG")
+  (error "ERROR_MSG"))
