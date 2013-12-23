@@ -1,5 +1,17 @@
 (in-package :lisp-unit2)
 
+(defun logically-equal (x y)
+  "Return true if x and y are both false or both true."
+  (eql (not x) (not y)))
+
+(defun set-equal (list1 list2 &rest initargs &key key (test #'equal))
+  "Return true if every element of list1 is an element of list2 and
+vice versa."
+  (setf list1 (alexandria:ensure-list list1)
+        list2 (alexandria:ensure-list list2))
+  (and (apply #'subsetp list1 list2 initargs :test test :key key)
+       (apply #'subsetp list2 list1 initargs :test test :key key)))
+
 ;;; Assert macros
 
 (defmacro assert-eq (expected form &rest extras)

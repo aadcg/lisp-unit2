@@ -1,10 +1,11 @@
-## lisp-unit
+## lisp-unit2
 
-*lisp-unit* is a Common Lisp library that supports unit testing. It is
-an extension of the [library written by Chris Riesbeck][orig]. There
-is a long history of testing packages in Lisp, usually called
-"regression" testers. More recent packages in Lisp and other languages
-have been inspired by [JUnit for Java][JUnit].
+*lisp-unit2* is a Common Lisp library that supports unit testing.  It
+is a new version of a library of the [lisp-unit library written by
+Chris Riesbeck][orig]. There is a long history of testing packages in
+Lisp, usually called "regression" testers. More recent packages in
+Lisp and other languages have been inspired by [JUnit for
+Java][JUnit].
 
 Recently longtime users at Acceleration.net felt motivated to refactor
 significantly, attempting to make some broad improvements to the library
@@ -26,7 +27,7 @@ while maintaining its benefits and workflow
 * Signals for starting and completing test runs (both individually and
   as a group)
 
-#### Features of lisp-unit version 2
+#### Differences from lisp-unit version 1
 * Simplified test retrieval / categorization.
  * Tests are stored by their name's symbol-package (easing the
    complexity of this package vs the package argument)
@@ -46,23 +47,38 @@ while maintaining its benefits and workflow
   of a dynamic context eg: 
   `(lambda (body-thunk) (let ((*var* 1))(funcall body-thunk)))`
 * Signals used throughout (including to drive current output summaries)
- * assertions passing and failing
- * tests starting and completeing
+ * assertions passing and failing (with abort restart, to cancel
+   assertions)
+ * tests starting and completeing (with continue restart for resuming
+   test run after an errors)
  * test batches starting and completeing
  * Dynamic variables available in signal handlers and all tests
    *unit-test* and *results*
-* Logging used throughout (to ease debugging of lisp-unit2)
-* TAP output first class and displays messages about the error
+* Logging used throughout (to ease debugging of lisp-unit2) - compile
+  time
+* TAP output displays better messages about the error and is more
+  consistent with the summary output
 * Better job of reporting compiler warnings and errors: when defining
   the test (and while running it)
+ * Summary output prints test starting messages. Compiler / run-time
+   errors printed into the output is obviously tied to the test in
+   question. (Previously the results printed after the error messages
+   and so it was textually ambiguous to which test the messages
+   applied)
+* lisp-unit2 is no longer loadable as a single file
+* :lisp-unit2 feature is available for conditional compilation
+* Better optimized for running both in a build-environment (jenkins
+  etc) and from the repl (previously there were many non-standard
+  boolean flags for controlling output and debugging).
+* test bodies compiled with (debug 3) - TODO: revisit this in light of
+  slow tests if that becomes an issue
+* Default ordering for tests and results is the definition order
+  (instead of random or reversed)
 
+### How to use lisp-unit2
 
-
-
-### How to use lisp-unit
-
-1. Load using [Quicklisp][] : `(ql:quickload :lisp-unit)` or [ASDF][]
-   : `(asdf:load-system :lisp-unit)`.
+1. Load using [Quicklisp][] : `(ql:quickload :lisp-unit2)` or [ASDF][]
+   : `(asdf:load-system :lisp-unit2)`.
 2. Define some tests (for best luck define tests in their own package
    by making their name be in a specific package).  By having tests in
    their own package, the test and the fn being tested can share the
@@ -106,6 +122,9 @@ See the internal test suite for more and better examples (internal-test/*)
 [Quicklisp]: <http://www.quicklisp.org> "Quicklisp"
 [ASDF]: <http://common-lisp.net/project/asdf/> "ASDF"
 [TAP]: <http://testanything.org/> "Test Anything Protocol"
+
+## 0.2.0 Acknowledgments
+* Russ Tyndall - Acceleration.net 
 
 ## 0.9.5 Acknowledgments
 

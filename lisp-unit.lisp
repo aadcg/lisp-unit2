@@ -119,14 +119,19 @@
     (%log #?"Uninstalling test ${u}")
     (%uninstall-name n (tags u))))
 
-(defun get-tests (&key tests tags package test-and-tags-package
+(defun get-tests (&key tests tags package reintern-package
                   &aux (db *test-db*))
-  "finds tests by names, tags, and package"
-  (%log-around (#?"get-tests:${tests} tags:${tags} package:${package} test-and-tags-package:${test-and-tags-package}"
+  "finds tests by names, tags, and package
+
+   if reintern-package is provided, reintern all symbols provided for tests
+   and tags into the reintern-package.  Mostly provided for easing conversion
+   of lisp-unit1 test suites
+  "
+  (%log-around (#?"get-tests:${tests} tags:${tags} package:${package} reintern-package:${reintern-package}"
                 :start-level 0)
-    (when test-and-tags-package
-      (setf tests (%in-package tests test-and-tags-package))
-      (setf tags (%in-package tags test-and-tags-package)))
+    (when reintern-package
+      (setf tests (%in-package tests reintern-package))
+      (setf tags (%in-package tags reintern-package)))
     (cond
       ;; defaults to pulling up all tests in the current package
       ((and (null tests) (null tags) (null package))
@@ -446,7 +451,7 @@
 
 (defgeneric run-tests (&key tests tags package
                        test-context-provider
-                       test-and-tags-package)
+                       reintern-package)
   (:documentation
    "Run the specified tests.
 
@@ -454,23 +459,23 @@
     and tags are nil (the default), then we run all tests in
     package (defaulting to *package*)
 
-    test-tags-package: when looking up tests, first reintern all tests and tags
+    reintern-package: when looking up tests, first reintern all tests and tags
       in this package. In general this should probably not be used, but is provided
-      for convenience in transitioning from lisp-unit 1 to 2 (see: define-test package)
+      for convenience in transitioning from lisp-unit 1 to 2 (see: define-test reintern-package)
   ")
   (:method :around (&key tests tags package test-context-provider
-                    test-and-tags-package)
+                    reintern-package)
     (declare (ignorable tests tags package test-context-provider
-                        test-and-tags-package))
+                        reintern-package))
     (%log-around (#?"Running tests:${tests} tags:${tags} package:${package} context:${test-context-provider}")
       (call-next-method)))
   (:method (&key
-            tests tags package test-context-provider test-and-tags-package
+            tests tags package test-context-provider reintern-package
             &aux
             (all-tests (get-tests :tests tests
                                   :tags tags
                                   :package package
-                                  :test-and-tags-package test-and-tags-package))
+                                  :reintern-package reintern-package))
             (results (make-instance 'test-results-db :tests all-tests))
             (*results* results))
     (%log #?"Running tests:${all-tests}" :level 0)
@@ -562,23 +567,6 @@
       (call-next-method)))
   (:method ((u unit-test) &key test-context-provider)
     (run-test (name u) :test-context-provider test-context-provider)))
-
-
-;;; Useful equality predicates for tests
-
-(defun logically-equal (x y)
-  "Return true if x and y are both false or both true."
-  (eql (not x) (not y)))
-
-(defun set-equal (list1 list2 &rest initargs &key key (test #'equal))
-  "Return true if every element of list1 is an element of list2 and
-vice versa."
-  (declare (ignore key test))
-  (and
-   (listp list1)
-   (listp list2)
-   (apply #'subsetp list1 list2 initargs)
-   (apply #'subsetp list2 list1 initargs)))
 
 (pushnew :lisp-unit2 common-lisp:*features*)
 
