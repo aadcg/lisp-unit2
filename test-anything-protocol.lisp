@@ -50,6 +50,10 @@ results."
       (%write-tap-test-result res (incf i))))
   test-results)
 
+(defun print-tap (test-results)
+  "Alias for write-tap for backwards and forwards consistency"
+  (write-tap test-results))
+
 (defun write-tap-to-file (test-results path)
   "write the test results to `path` in TAP format, overwriting `path`.
 Returns pathname to the output file"
