@@ -56,6 +56,7 @@
      :with-assertion-summary-context
      :test-names
      :print-summary
+     :print-failure-summary
      :print-status-summary
      :summarize-results
      :with-tap-summary

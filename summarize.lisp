@@ -74,10 +74,17 @@
     (format *test-stream* "  | ~D empty~@:_" empty)
     (format *test-stream* "  | ~D missing tests~@:_" missing)))
 
-(defun print-summary (o &aux (*print-pretty* t) rtn)
+(defun print-summary (o &aux (*print-pretty* t))
   (pprint-logical-block (*test-stream* nil)
-    (setf rtn(multiple-value-list (%print-summary o))))
-  (apply #'values rtn))
+    (%print-summary o))
+  o)
+
+(defun print-failure-summary (o &aux (*print-pretty* t))
+  (format *test-stream* "~%~0I")
+  (pprint-logical-block (*test-stream* nil)
+    (print-status-summary o '(failed errors warnings empty))
+    (%print-result-summary o))
+  o)
 
 (defgeneric %print-summary (o)
   (:documentation "Print a summary of all results to the stream.")
@@ -157,13 +164,16 @@
     e))
 
 (defgeneric print-status-summary (object status)
-  (:method ((db test-results-db) s &aux (objs (funcall s db)))
+  (:method ((db test-results-db) (status list))
+    (iter (for s in status)
+      (print-status-summary db s)))
+  (:method ((db test-results-db) (s symbol) &aux (objs (funcall s db)))
     (when objs
       (iter (for o in (typecase objs
                         (list objs)
                         (list-collector (head objs))))
         (print-status-summary o s))))
-  (:method ((o test-result) s &aux (objs (funcall s o)))
+  (:method ((o test-result) (s symbol) &aux (objs (funcall s o)))
     (when objs
       (%out "~A (~D)" s (len objs))
       (iter (for o in (typecase objs
