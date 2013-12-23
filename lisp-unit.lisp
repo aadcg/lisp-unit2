@@ -245,7 +245,7 @@
 
       Note: This should probably not be used (rather opting for
       packaged::symbols), but will be useful when converting from lisp-unit
-      1->2.  See also: run-tests
+      1->2.  See also: run-tests, get-tests reintern-package
   "
   (when package
     (setf name (%in-package name package)))
@@ -461,7 +461,7 @@
 
     reintern-package: when looking up tests, first reintern all tests and tags
       in this package. In general this should probably not be used, but is provided
-      for convenience in transitioning from lisp-unit 1 to 2 (see: define-test reintern-package)
+      for convenience in transitioning from lisp-unit 1 to 2 (see: define-test package)
   ")
   (:method :around (&key tests tags package test-context-provider
                     reintern-package)
