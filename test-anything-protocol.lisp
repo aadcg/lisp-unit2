@@ -27,7 +27,7 @@ is the same before and after invocation."
                        (errors test-result)
                        (warnings test-result))))
       (format *test-stream*
-              "~:[ok~;not ok~] ~d ~s (~,2f s)"
+              "~:[ok~;not ok~] ~d ~A (~,2f s)"
               not-ok? i (ignore-errors (short-full-name test-result))
               (run-time test-result))
       (when not-ok?
