@@ -32,8 +32,9 @@ is the same before and after invocation."
               (run-time test-result))
       (when not-ok?
         ;; indent only takes affect after a newline, so force one
-        (format *test-stream* "~4I~@:_")
-        (let ((*status-prefix* "~@:_")) (print-summary test-result)))
+        (format *test-stream* "~4I~@:_---~@:_")
+        (let ((*status-prefix* "~@:_# ")) (print-summary test-result))
+        (format *test-stream* "~@:_..."))
       ;; always reset to zero and force a newline
       (format *test-stream* "~0I~@:_"))))
 

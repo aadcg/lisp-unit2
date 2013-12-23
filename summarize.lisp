@@ -102,7 +102,7 @@
       (%print-result-summary o))
     o)
   (:method  ((run test-result))
-    (format *test-stream* "~@_~A - ~A (~,2Fs) : ~S assertions passed"
+    (format *test-stream* "~@_# ~A - ~A (~,2Fs) : ~S assertions passed"
             (name (unit-test run)) (status run)
             (run-time run)
             (len (passed run)))
