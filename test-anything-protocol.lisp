@@ -19,8 +19,7 @@
 (defmacro with-tap-summary (() &body body)
   `(with-tap-context (lambda () ,@body)))
 
-(defun %write-tap-test-result (test-result i
-                               &aux (name (name (unit-test test-result))))
+(defun %write-tap-test-result (test-result i)
   "Output a single test, taking care to ensure the indentation level
 is the same before and after invocation."
   (pprint-logical-block (*test-stream* nil)
@@ -29,7 +28,7 @@ is the same before and after invocation."
                        (warnings test-result))))
       (format *test-stream*
               "~:[ok~;not ok~] ~d ~s (~,2f s)"
-              not-ok? i name
+              not-ok? i (ignore-errors (short-full-name test-result))
               (run-time test-result))
       (when not-ok?
         ;; indent only takes affect after a newline, so force one

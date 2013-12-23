@@ -1,5 +1,14 @@
 (in-package :lisp-unit2)
 
+(define-condition assertion-pass (condition)
+  ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
+   (assertion :accessor assertion :initarg :assertion :initform nil)))
+
+(define-condition assertion-fail (condition)
+  ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
+   (assertion :accessor assertion :initarg :assertion :initform nil)
+   (failure :accessor failure :initarg :failure :initform nil)))
+
 (defun logically-equal (x y)
   "Return true if x and y are both false or both true."
   (eql (not x) (not y)))
@@ -175,15 +184,6 @@ vice versa."
 
 (defclass output-result (failure-result) ()
   (:documentation "Result of a failed output assertion."))
-
-(define-condition assertion-pass (condition)
-  ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
-   (assertion :accessor assertion :initarg :assertion :initform nil)))
-
-(define-condition assertion-fail (condition)
-  ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
-   (assertion :accessor assertion :initarg :assertion :initform nil)
-   (failure :accessor failure :initarg :failure :initform nil)))
 
 (defun %form-equal (form1 form2 &aux (invalid `(/= ,form1 ,form2)))
   "Descend into the forms checking for equality.

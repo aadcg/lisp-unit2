@@ -11,7 +11,7 @@
            (lambda (c) (format *test-stream* "~@:_~A:Passed ~A"
                           (or
                            (ignore-errors
-                            (short-full-symbol-name (name (unit-test c))))
+                            (short-full-name c))
                            "<No Test>")
                           (assertion c))))
          (assertion-fail
@@ -30,7 +30,7 @@
     (handler-bind
         ((test-start
            (lambda (c) (format *test-stream* "~@:_Starting: ~A"
-                          (short-full-symbol-name (name (unit-test c))))))
+                          (short-full-name c))))
          (all-tests-complete
            (lambda (c)
              (when name
@@ -43,7 +43,7 @@
         (format *test-stream* "~0I~%")))
   (apply #'values rtn))
 
-(defmacro with-summary ((&key name statuses) &body body)
+(defmacro with-summary ((&key name) &body body)
   `(with-summary-context (lambda () ,@body)
     :name ,name))
 

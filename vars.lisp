@@ -17,3 +17,30 @@
 (defparameter +statuses+
   '(errors failed warnings passed missing empty)
   "List of statuses in order of priority for categorizing test runs")
+
+
+;;; Run the tests
+(define-condition missing-test (warning)
+  ((test-name :accessor test-name :initarg :test-name :initform nil))
+  (:documentation "Signaled when a single test is finished.")
+  (:report
+   (lambda (c s)
+     (format s "Warning MISSING-TEST: ~A" (test-name c)))))
+
+(define-condition test-start ()
+  ((unit-test :accessor unit-test :initarg :unit-test :initform nil))
+  (:documentation "Signaled when a single test starts."))
+
+(define-condition test-complete ()
+  ((result :accessor result :initarg :result :initform nil))
+  (:documentation
+   "Signaled when a single test is finished."))
+
+(define-condition all-tests-start ()
+  ((results :accessor results :initarg :results :initform nil))
+  (:documentation "Signaled when a single test starts."))
+
+(define-condition all-tests-complete ()
+  ((results :accessor results :initarg :results :initform nil))
+  (:documentation
+   "Signaled when a test run is finished."))

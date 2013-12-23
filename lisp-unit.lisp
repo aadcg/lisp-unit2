@@ -55,16 +55,23 @@
   (:documentation
    "Organize the unit test documentation and code."))
 
-(defun short-full-symbol-name (s)
-  (let* ((package (symbol-package s))
-         (nick (first (package-nicknames package)))
-         (p (or nick (package-name package) "#")))
-    #?"${p}::${s}"))
+(defun short-full-name (s)
+  (typecase s
+    ((or assertion-pass assertion-fail test-result test-start)
+     (short-full-name (unit-test s)))
+    (test-complete
+     (short-full-name (unit-test s)))
+    (unit-test (short-full-name (name s)))
+    (symbol
+     (let* ((package (symbol-package s))
+            (nick (first (package-nicknames package)))
+            (p (or nick (package-name package) "#")))
+       #?"${p}::${s}"))))
 
 (defmethod print-object ((o unit-test) s)
   "Print the auto-print-items for this instance."
   (print-unreadable-object (o s :type t :identity t)
-    (princ (ignore-errors (short-full-symbol-name (name o))) s)))
+    (princ (ignore-errors (short-full-name o)) s)))
 
 (defmethod install-test ((u unit-test)
                          &aux (package (symbol-package (name u)))
@@ -342,10 +349,9 @@
   ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
    (return-value :accessor return-value :initarg :return-value :initform nil)))
 
-(defmethod print-object ((o test-result) s
-                         &aux (name (ignore-errors (name (unit-test o)))))
+(defmethod print-object ((o test-result) s)
   "Print the auto-print-items for this instance."
-    (format s "#<RESULT ~A ~A(~d)>" (ignore-errors (short-full-symbol-name name))
+    (format s "#<RESULT ~A ~A(~d)>" (ignore-errors (short-full-name o))
             (ignore-errors (status o))
             (ignore-errors (len (funcall (status o) o)))))
 
@@ -386,38 +392,6 @@
           (warnings (ignore-errors (len (all-warnings o)))))
       (format stream "Tests:(~a) Passed:(~a) Failed:(~a) Errors:(~a) Warnings:(~a)"
               total passed failed errors warnings))))
-
-;;; Run the tests
-(define-condition missing-test (warning)
-  ((test-name :accessor test-name :initarg :test-name :initform nil))
-  (:documentation "Signaled when a single test is finished.")
-  (:report
-   (lambda (c s)
-     (format s "Warning MISSING-TEST: ~A" (test-name c)))))
-
-(define-condition test-start ()
-  ((unit-test :accessor unit-test :initarg :unit-test :initform nil))
-  (:documentation "Signaled when a single test starts."))
-
-(define-condition test-complete ()
-  ((result :accessor result :initarg :result :initform nil))
-  (:documentation
-   "Signaled when a single test is finished."))
-
-(define-condition all-tests-start ()
-  ((results
-    :type 'test-results-db
-    :initarg :results
-    :reader results))
-  (:documentation "Signaled when a single test starts."))
-
-(define-condition all-tests-complete ()
-  ((results
-    :type 'test-results-db
-    :initarg :results
-    :reader results))
-  (:documentation
-   "Signaled when a test run is finished."))
 
 (defun record-result-context (body)
   "as we are finishing a test (ie: it has the right status)
