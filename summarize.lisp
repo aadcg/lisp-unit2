@@ -102,13 +102,13 @@
       (%print-result-summary o))
     o)
   (:method  ((run test-result))
-    (format *test-stream* "~@_# ~A - ~A (~,2Fs) : ~S assertions passed"
+    (format *test-stream* "~@_~A - ~A (~,2Fs) : ~S assertions passed"
             (name (unit-test run)) (status run)
             (run-time run)
             (len (passed run)))
     (iter (for s in '(errors failed warnings))
       (print-status-summary run s))
-    (format *test-stream* "~@_")
+    (format *test-stream* "~@:_")
     run)
   (:method :around ((result failure-result))
     (%out "Failed Form: ~S" (form result))
