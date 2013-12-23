@@ -33,7 +33,7 @@ is the same before and after invocation."
       (when not-ok?
         ;; indent only takes affect after a newline, so force one
         (format *test-stream* "~4I~@:_")
-        (print-summary test-result))
+        (let ((*status-prefix* "~@:_")) (print-summary test-result)))
       ;; always reset to zero and force a newline
       (format *test-stream* "~0I~@:_"))))
 

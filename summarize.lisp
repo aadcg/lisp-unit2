@@ -118,7 +118,6 @@
         (if (equalp f v)
             (%out f)
             (%out "~S => ~S" f v))))
-    (%out "")
     result)
 
   (:method ((result failure-result)
@@ -128,6 +127,7 @@
             "~<~?~:;but saw ~{~S~^; ~}~>"
             (first prefix) (rest prefix)
             (actual result)))
+
   (:method ((result error-result))
     (%out "~@[Should have signalled ~{~S~^; ~} but saw~]"
           (expected result))
@@ -154,12 +154,10 @@
   (:method ((w warning))
     (%out "WARNING: ~A" w)
     (%out "~S" w)
-    (%out "")
     w)
   (:method ((e error))
     (%out "ERROR: ~A" e)
     (%out "~S" e)
-    (%out "")
     e))
 
 (defgeneric print-status-summary (object status)
