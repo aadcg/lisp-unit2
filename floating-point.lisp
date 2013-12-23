@@ -258,7 +258,7 @@ comparison of the relative error is less than epsilon."
      epsilon)))
 
 (defmacro assert-float-equal (expected form &rest extras)
-  `(expand-assert :equal ,form ,form ,expected ,extras :test #'float-equal))
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'float-equal))
 
 ;;; (SUMSQ data) => scale, sumsq
 (defmethod sumsq ((data list))
@@ -503,7 +503,7 @@ error norm is less than epsilon."
      epsilon measure)))
 
 (defmacro assert-norm-equal (expected form &rest extras)
-  `(expand-assert :equal ,form ,form ,expected ,extras :test #'norm-equal))
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'norm-equal))
 
 ;;; (NORMALIZE-FLOAT significand &optional exponent) => significand,exponent
 ;;; [NumAlgoC] : Definition 1.7, pg. 4
@@ -589,7 +589,7 @@ comparison is equal to significant figures."
      significant-figures)))
 
 (defmacro assert-sigfig-equal (expected form &rest extras)
-  `(expand-assert :equal ,form ,form ,expected ,extras :test #'sigfig-equal))
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'sigfig-equal))
 
 ;;; (NUMBER-EQUAL number1 number2) => true or false
 (defun number-equal (number1 number2 &optional (epsilon *epsilon*) type-eq-p)
@@ -602,7 +602,7 @@ optionally requiring the types to be identical."
                 epsilon)))
 
 (defmacro assert-number-equal (expected form &rest extras)
-  `(expand-assert :equal ,form ,form ,expected ,extras :test #'number-equal))
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'number-equal))
 
 ;;; (NUMERICAL-EQUAL result1 result2) => true or false
 ;;;
@@ -660,7 +660,7 @@ is equal according to :TEST."
 		       :displaced-to result2))))
 
 (defmacro assert-numerical-equal (expected form &rest extras)
-  `(expand-assert :equal ,form ,form ,expected ,extras :test #'numerical-equal))
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'numerical-equal))
 
 ;;; FIXME : Audit and move the diagnostic functions to a separate
 ;;; file.

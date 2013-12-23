@@ -4,6 +4,11 @@
 
 (defparameter *example-db* (make-instance 'lisp-unit2::test-database))
 
+(define-condition super-test-warning (warning)
+  ())
+
+(define-condition sub-test-warning (super-test-warning)
+  ())
 
 
 (let ((lisp-unit2::*test-db* *example-db*))
@@ -113,21 +118,46 @@
     (check-type complex2 complex)
     (- complex1 complex2))
 
-  (handler-bind ((warning #'muffle-warning))
-    (define-test add-complex-test (:tags '(add complex examples))
-      "Test add-complex for values and errors."
-      (assert-eql #C(3 5) (add-complex #C(1 2) #C(2 3)))
-      ;; TODO: would be nice if this compiler warning didnt
-      ;; show in the output :/
-      (let ((i 0))                      ;; warning
-        (assert-error 'type-error (add-integer #C(1 2) 3)))
-      (assert-error 'type-error (add-integer 1 #C(2 3)))))
+  (define-test add-complex-test (:tags '(add complex examples))
+    "Test add-complex for values and errors."
+    (assert-eql #C(3 5) (add-complex #C(1 2) #C(2 3)))
+    (assert-error 'type-error (add-integer #C(1 2) 3))
+    (assert-error 'type-error (add-integer 1 #C(2 3))))
 
   (define-test subtract-complex-test (:tags '(subtract complex examples))
     "Test subtract-complex for values and errors."
     (assert-eql #C(1 2) (subtract-complex #C(3 5) #C(2 3)))
     (assert-error 'type-error (subtract-integer #C(3 5) 2))
     (assert-error 'type-error (subtract-integer 2 #C(2 3))))
+
+  (handler-bind ((warning #'muffle-warning))
+    (define-test uncaught-warnings (:tags '(warnings))
+      (let ((foo 0))
+        (warn "Foo"))))
+
+  (define-test warns-some-warnings (:tags '(warnings))
+
+    (assert-warning
+     'super-test-warning
+     (progn (warn 'super-test-warning) (values)))
+
+    (assert-warning
+     'super-test-warning
+     (progn (warn 'sub-test-warning) (values)))
+
+    (let (warning?)
+      (handler-bind ((warning (lambda (c)
+                                (setf warning? c)
+                                (muffle-warning c))))
+        (assert-no-warning
+         'super-test-warning
+         (progn (warn "foo") (values))))
+      (assert-true warning?))
+
+    (handler-bind ((warning #'muffle-warning))
+      (assert-no-warning
+       'sub-test-warning
+       (progn (warn 'super-test-warning) (values)))))
   ) ;; finish example-database-construction
 
 (defun meta-test-context (body-fn)
@@ -146,6 +176,14 @@
                  (lisp-unit2::assertion-fail #'abort))
     (lisp-unit2:run-tests :tags tags)))
 
+(define-test test-warning-assertions (:tags '(meta-tests)
+                                      :context-provider #'meta-test-context)
+  (let ((res (%run-meta-tags 'warnings)))
+    (assert-eql 2 (len (lisp-unit2::tests res)))
+    (assert-eql 5 (len (lisp-unit2::passed-assertions res)))
+    (assert-eql 1 (len (lisp-unit2::warnings res)))
+    (assert-eql 2 (len (lisp-unit2::all-warnings res)))))
+
 (define-test test-failing-assertions (:tags '(meta-tests)
                                       :context-provider #'meta-test-context)
   (let ((res (%run-meta-tags 'failed)))
@@ -163,9 +201,9 @@
 (define-test meta-tests (:tags '(meta-tests)
                          :context-provider #'meta-test-context)
   (let ((res (%run-meta-tags nil)))
-    (assert-eql 10 (len (lisp-unit2::tests res)))
+    (assert-eql 12 (len (lisp-unit2::tests res)))
     (assert-eql 6 (len (lisp-unit2::failed-assertions res)))
-    (assert-eql 22 (len (lisp-unit2::passed-assertions res)))
+    (assert-eql 27 (len (lisp-unit2::passed-assertions res)))
     (assert-eql 1 (len (lisp-unit2::errors res)))
     (assert-eql 1 (len (lisp-unit2::warnings res)))))
 

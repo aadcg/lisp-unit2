@@ -74,6 +74,8 @@ while maintaining its benefits and workflow
   slow tests if that becomes an issue
 * Default ordering for tests and results is the definition order
   (instead of random or reversed)
+* assert-result -> assert-passes?
+* (define-test name &body) became (define-test name (&key-args) &body)
 
 ### How to use lisp-unit2
 

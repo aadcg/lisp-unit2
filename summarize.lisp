@@ -9,7 +9,10 @@
     (handler-bind
         ((assertion-pass
            (lambda (c) (format *test-stream* "~@:_~A:Passed ~A"
-                          (short-full-symbol-name (name (unit-test c)))
+                          (or
+                           (ignore-errors
+                            (short-full-symbol-name (name (unit-test c))))
+                           "<No Test>")
                           (assertion c))))
          (assertion-fail
            (lambda (c) (%print-summary (failure c)))))
