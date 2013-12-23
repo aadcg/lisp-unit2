@@ -309,7 +309,11 @@
 (defclass test-results-mixin ()
   #.`((start-time :accessor start-time :initarg :start-time
                   :initform (get-universal-time))
+      (internal-start-time :accessor internal-start-time :initarg :internal-start-time
+                           :initform (get-internal-real-time))
       (end-time :accessor end-time :initarg :end-time :initform nil)
+      (internal-end-time :accessor internal-end-time :initarg :internal-end-time
+                           :initform nil)
       ;; SORRY want to keep this in sync with the +statuses, with minimal
       ;; shenanigans
       ,@(iter
@@ -330,6 +334,9 @@
 (defgeneric run-time (it)
   (:method ((o test-results-mixin))
     (or
+     (ignore-errors
+      (float (/ (- (internal-end-time o) (internal-start-time o))
+                internal-time-units-per-second) 0.0d0))
      (ignore-errors
       (- (end-time o) (start-time o)))
      -1)))
@@ -447,7 +454,8 @@
               (name test)
               :test-context-provider
               (list #'record-result-context test-context-provider))))
-      (setf (end-time results) (get-universal-time))
+      (setf (end-time results) (get-universal-time)
+            (internal-end-time results) (get-internal-real-time))
       (signal 'all-tests-complete :results results))
     results))
 
@@ -509,7 +517,8 @@
                  (do-contexts (test-thunk u)
                    (context-provider u)
                    test-context-provider)))
-      (setf (end-time result) (get-universal-time))
+      (setf (end-time result) (get-universal-time)
+            (internal-end-time result) (get-internal-real-time))
       (signal 'test-complete :result result)))
   result)
 
