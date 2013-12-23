@@ -2,7 +2,8 @@
 (in-package :lisp-unit2)
 (cl-interpol:enable-interpol-syntax)
 
-(defun with-assertion-summary-context (body-fn &aux (*print-pretty* t) rtn)
+(defun with-assertion-summary-context (body-fn
+                                       &aux (*print-pretty* t) rtn)
   (format *test-stream* "~%~0I")
   (pprint-logical-block (*test-stream* nil)
     (handler-bind
@@ -16,22 +17,32 @@
     (format *test-stream* "~0I~%"))
   (apply #'values rtn))
 
-(defun with-summary-context (body-fn &aux (*print-pretty* t) rtn)
-  (format *test-stream* "~%~0I")
+(defun with-summary-context (body-fn
+                             &key name
+                             &aux (*print-pretty* t) rtn)
+  (if name
+    (format *test-stream* "~%~0I------- STARTING Testing: ~A ~%" name)
+    (format *test-stream* "~%~0I"))
   (pprint-logical-block (*test-stream* nil)
     (handler-bind
         ((test-start
            (lambda (c) (format *test-stream* "~@:_Starting: ~A"
                           (short-full-symbol-name (name (unit-test c))))))
          (all-tests-complete
-           (lambda (c) (%print-result-summary (results c))))
+           (lambda (c)
+             (when name
+               (format *test-stream* "~@:_------- Summary of: ~A ~%" name))
+             (%print-result-summary (results c))))
          (test-complete (lambda (c) (%print-summary (result c)))))
       (setf rtn (multiple-value-list (funcall body-fn))))
-    (format *test-stream* "~0I~%"))
+    (if name
+        (format *test-stream* "~%~0I-------   ENDING Testing: ~A ~%" name)
+        (format *test-stream* "~0I~%")))
   (apply #'values rtn))
 
-(defmacro with-summary (() &body body)
-  `(with-summary-context (lambda () ,@body)))
+(defmacro with-summary ((&key name) &body body)
+  `(with-summary-context (lambda () ,@body)
+    :name ,name))
 
 (defmacro with-assertion-summary (() &body body)
   `(with-assertion-summary-context (lambda () ,@body)))
