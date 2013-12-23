@@ -41,35 +41,43 @@ vice versa."
                   ,condition ,extras
     :full-form ',whole))
 
-(defmacro assert-warning (&whole whole condition form &rest extras)
+(defmacro assert-signal (&whole whole condition form &rest extras)
   (alexandria:with-unique-names (signalled)
     (let ((body `(let (,signalled)
-                  (handler-bind ((warning #'(lambda (c)
+                  (handler-bind ((condition #'(lambda (c)
                                               (when (typep c ,condition)
                                                 (setf ,signalled c)
-                                                (muffle-warning c)))))
+                                                (when (typep c 'warning)
+                                                  (muffle-warning c))))))
                     ,form)
                   ,signalled)))
 
       `(expand-assert
-        'warning-result
+        'signal-result
         ,form ,body ,condition ,extras
         :full-form ',whole))))
 
-(defmacro assert-no-warning (&whole whole condition form &rest extras)
+(defmacro assert-no-signal (&whole whole condition form &rest extras)
   (alexandria:with-unique-names (signalled)
     (let ((body `(let (,signalled)
-                  (handler-bind ((warning #'(lambda (c)
-                                              (when (typep c ,condition)
-                                                (setf ,signalled c)
-                                                (muffle-warning c)))))
+                  (handler-bind ((condition #'(lambda (c)
+                                                (when (typep c ,condition)
+                                                  (setf ,signalled c)
+                                                  (when (typep c 'warning)
+                                                    (muffle-warning c))))))
                     ,form)
                   ,signalled)))
 
       `(expand-assert
-        'warning-result
+        'signal-result
         ,form ,body ,nil ,extras
         :full-form ',whole))))
+
+(defmacro assert-warning (condition form &rest extras)
+  `(assert-signal ,condition ,form ,@extras))
+
+(defmacro assert-no-warning (condition form &rest extras)
+  `(assert-no-signal ,condition ,form ,@extras))
 
 (defmacro assert-expands (expansion form &rest extras)
   "Assert whether form expands to expansion."
@@ -156,7 +164,7 @@ vice versa."
 (defclass error-result (failure-result) ()
   (:documentation "Result of a failed error assertion."))
 
-(defclass warning-result (failure-result) ()
+(defclass signal-result (failure-result) ()
   (:documentation "Result of a failed warning assertion."))
 
 (defclass macro-result (failure-result) ()
@@ -213,7 +221,7 @@ vice versa."
        (and
         (<= (length expected) (length actual))
         (every test expected actual)))
-      (warning-result
+      (signal-result
        (if expected
            (not (null actual)) ;; we got a condition of the type
            (null actual) ;; no condition expected
