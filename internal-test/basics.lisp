@@ -32,10 +32,6 @@
   (lisp-unit2::do-contexts
     #'test-body-thunk nil #'test-context-1 nil nil #'test-context-2 nil nil ))
 
-(define-test %broken (:tags '(broken))
-  (warn "WARN_MSG")
-  (error "ERROR_MSG"))
-
 (define-test %form-equal (:tags '(utils asserts))
   (macrolet ((fe? (x y) `(assert-true (lisp-unit2::%form-equal ,x ,y)))
              (nfe? (x y) `(assert-false (lisp-unit2::%form-equal ,x ,y))))
