@@ -61,8 +61,7 @@
 
 
 (defun %out (s &rest args
-               &aux ;;(prefix (alexandria:ensure-list *status-prefix*))
-               (*print-pretty* t))
+               &aux (*print-pretty* t))
   (format *test-stream* "~@:_~?" (or s "") args))
 
 (defmethod %print-result-summary ((o test-results-db))
@@ -131,12 +130,10 @@
             (%out "~S => ~S" f v))))
     result)
 
-  (:method ((result failure-result)
-            &aux (prefix (alexandria:ensure-list *status-prefix*)))
+  (:method ((result failure-result))
     (%out "Expected ~{~S~^; ~} " (expected result))
     (format *test-stream*
-            "~<~?~:;but saw ~{~S~^; ~}~>"
-            (first prefix) (rest prefix)
+            "~<~:;but saw ~{~S~^; ~}~>"
             (actual result)))
 
   (:method ((result error-result))
@@ -145,21 +142,17 @@
     (%out "~{~S~^; ~}" (actual result))
     result)
 
-  (:method ((result macro-result)
-            &aux (prefix (alexandria:ensure-list *status-prefix*)))
+  (:method ((result macro-result))
     (%out "Should have expanded to ~{~S~^; ~} " (expected result))
     (format *test-stream*
-            "~<~?~:;but saw ~{~S~^; ~}~>"
-            (first prefix) (rest prefix)
+            "~<~:;but saw ~{~S~^; ~}~>"
             (actual result))
     result)
 
-  (:method ((result output-result)
-            &aux (prefix (alexandria:ensure-list *status-prefix*)))
+  (:method ((result output-result))
     (format *test-stream* "~@:_| Should have printed ~{~S~^; ~} "
             (expected result))
-    (format *test-stream* "~<~?~:;but saw ~{~S~^; ~}~>"
-            (first prefix) (rest prefix)
+    (format *test-stream* "~<~:;but saw ~{~S~^; ~}~>"
             (actual result))
     result)
   (:method ((w warning))
