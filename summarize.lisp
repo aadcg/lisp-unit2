@@ -111,7 +111,8 @@
   (:method  ((run test-result))
     (let ((not-ok? (or (failed run) (errors run) (warnings run))))
       (format *test-stream* "~@_~A - ~A (~,2Fs) : ~S assertions passed~@:_"
-              (name (unit-test run)) (status run)
+              (ignore-errors (short-full-name run))
+              (status run)
               (run-time run)
               (len (passed run)))
       ;; prevents print an extra "\n | "
