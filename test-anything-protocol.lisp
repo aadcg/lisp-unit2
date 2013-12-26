@@ -22,7 +22,7 @@
 (defun %write-tap-test-result (test-result i)
   "Output a single test, taking care to ensure the indentation level
 is the same before and after invocation."
-  (pprint-logical-block (*test-stream* nil)
+  (pprint-test-block ()
     (let ((not-ok? (or (failed test-result)
                        (errors test-result)
                        (warnings test-result))))
@@ -32,8 +32,8 @@ is the same before and after invocation."
               (run-time test-result))
       (when not-ok?
         ;; indent only takes affect after a newline, so force one
-        (format *test-stream* "~4I~@:_---")
-        (let ((*status-prefix* "~@:_# "))
+        (format *test-stream* "~4I~@:_---~@:_")
+        (pprint-test-block (:per-line-prefix " # ")
           (iter (for s in '(errors failed warnings))
             (print-status-summary test-result s)))
         (format *test-stream* "~@:_..."))

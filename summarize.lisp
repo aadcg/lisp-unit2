@@ -2,10 +2,18 @@
 (in-package :lisp-unit2)
 (cl-interpol:enable-interpol-syntax)
 
+(defmacro pprint-test-block ((&key per-line-prefix) &body body)
+  `(block nil               ;; this prevents outputing an extra newline/prefix
+    (pprint-logical-block (*test-stream* nil ,@(when per-line-prefix
+                                                 `(:per-line-prefix ,per-line-prefix)))
+      (pprint-indent :current 0 *test-stream*)
+      ,@body
+      (pprint-exit-if-list-exhausted))))
+
 (defun with-assertion-summary-context (body-fn
                                        &aux (*print-pretty* t) rtn)
-  (format *test-stream* "~%~0I")
-  (pprint-logical-block (*test-stream* nil)
+  (pprint-test-block ()
+    (format *test-stream* "~%")
     (handler-bind
         ((assertion-pass
            (lambda (c) (format *test-stream* "~@:_~A:Passed ~A"
@@ -26,7 +34,7 @@
   (if name
     (format *test-stream* "~%~0I------- STARTING Testing: ~A ~%" name)
     (format *test-stream* "~%~0I"))
-  (pprint-logical-block (*test-stream* nil)
+  (pprint-test-block ()
     (handler-bind
         ((test-start
            (lambda (c) (format *test-stream* "~@:_Starting: ~A~@:_"
@@ -50,12 +58,12 @@
 (defmacro with-assertion-summary (() &body body)
   `(with-assertion-summary-context (lambda () ,@body)))
 
-(defparameter *status-prefix* "~@:_  |  ")
+
 
 (defun %out (s &rest args
-               &aux (prefix (alexandria:ensure-list *status-prefix*))
+               &aux ;;(prefix (alexandria:ensure-list *status-prefix*))
                (*print-pretty* t))
-  (format *test-stream* "~?~?" (first prefix) (rest prefix) (or s "") args))
+  (format *test-stream* "~@:_~?" (or s "") args))
 
 (defmethod %print-result-summary ((o test-results-db))
   (let ((total (len (tests o)))
@@ -75,13 +83,13 @@
     (format *test-stream* "  | ~D missing tests~@:_" missing)))
 
 (defun print-summary (o &aux (*print-pretty* t))
-  (pprint-logical-block (*test-stream* nil)
+  (pprint-test-block ()
     (%print-summary o))
   o)
 
 (defun print-failure-summary (o &aux (*print-pretty* t))
   (format *test-stream* "~%~0I")
-  (pprint-logical-block (*test-stream* nil)
+  (pprint-test-block ()
     (print-status-summary o '(failed errors warnings empty))
     (%print-result-summary o))
   o)
@@ -97,18 +105,21 @@
       (%print-summary res))
     o)
   (:method ((o test-results-db))
-    (pprint-logical-block (*test-stream* nil)
+    (pprint-test-block ()
       (%print-summary (results o))
       (%print-result-summary o))
     o)
   (:method  ((run test-result))
-    (format *test-stream* "~@_~A - ~A (~,2Fs) : ~S assertions passed"
-            (name (unit-test run)) (status run)
-            (run-time run)
-            (len (passed run)))
-    (iter (for s in '(errors failed warnings))
-      (print-status-summary run s))
-    (format *test-stream* "~@:_")
+    (let ((not-ok? (or (failed run) (errors run) (warnings run))))
+      (format *test-stream* "~@_~A - ~A (~,2Fs) : ~S assertions passed~@:_"
+              (name (unit-test run)) (status run)
+              (run-time run)
+              (len (passed run)))
+      ;; prevents print an extra "\n | "
+      (when not-ok?
+        (pprint-test-block (:per-line-prefix "  | ")
+          (iter (for s in '(errors failed warnings))
+            (print-status-summary run s)))))
     run)
   (:method :around ((result failure-result))
     (%out "Failed Form: ~S" (form result))
@@ -172,10 +183,10 @@
         (print-status-summary o s))))
   (:method ((o test-result) (s symbol) &aux (objs (funcall s o)))
     (when objs
-      (%out "~A (~D)" s (len objs))
+      (format *test-stream* "~A (~D)~@:_" s (len objs))
       (iter (for o in (typecase objs
                         (list objs)
                         (list-collector (head objs))))
         (%print-summary o))
-      (%out "---------------------------"))
+      (format *test-stream* "~@:_"))
     ))
