@@ -44,6 +44,14 @@ vice versa."
   `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'equalp
     :full-form ',whole))
 
+(defmacro assert-typep (&whole whole expected-type form &rest extras)
+  "Assert whether expected and form are EQUALP."
+  `(expand-assert
+    'equal-result ,form ,form
+    ,expected-type ,extras
+    :test #'typep
+    :full-form ',whole))
+
 (defmacro assert-error (&whole whole condition form &rest extras)
   "Assert whether form signals condition."
   `(expand-assert 'error-result ,form (expand-error-form ,form)
@@ -220,7 +228,9 @@ vice versa."
       ((equal-result failure-result)
        (and
         (<= (length expected) (length actual))
-        (every test expected actual)))
+        ;; by putting expected in the second position we open up the ability
+        ;; to use many more functions as tests (eg: typep)
+        (every test actual expected)))
       (signal-result
        (if expected
            (not (null actual)) ;; we got a condition of the type

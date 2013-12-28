@@ -16,6 +16,7 @@
      :assert-false :assert-error
      :assert-warning :assert-no-warning
      :assert-signal :assert-no-signal
+     :assert-typep
      ;; floating point
      :*measure* :*epsilon* :*significant-figures*
      :default-epsilon :sumsq :sump :norm
@@ -42,7 +43,7 @@
      :run-tests
      :run-test
      :reset-test-database
-
+     :with-test-signals-muffled
      :unit-test :*unit-test*)
     ;; Functions for managing tags
     (:export
@@ -53,6 +54,8 @@
     (:export
      :with-summary
      :with-summary-context
+     :with-test-results
+     :with-test-results-context
      :with-assertion-summary
      :with-assertion-summary-context
      :test-names
@@ -80,6 +83,7 @@
      :assert-false :assert-error
      :assert-warning :assert-no-warning
      :assert-signal :assert-no-signal
+     :assert-typep
      ;; floating point
      :*measure* :*epsilon* :*significant-figures*
      :default-epsilon :sumsq :sump :norm
@@ -98,6 +102,7 @@
      :assert-false :assert-error
      :assert-warning :assert-no-warning
      :assert-signal :assert-no-signal
+     :assert-typep
      ;; floating point
      :*measure* :*epsilon* :*significant-figures*
      :default-epsilon :sumsq :sump :norm

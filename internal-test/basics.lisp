@@ -13,6 +13,8 @@
     (lisp-unit2::%decollect! 3 list)
     (lisp-unit2::%collect! 7 list)
     (assert-equal '(1 2 4 6 7) (lisp-unit2::head list))
+    (lisp-unit2::%collect-new! 7 list)
+    (assert-equal '(1 2 4 6 7) (lisp-unit2::head list))
     ))
 
 (defparameter *context-stack* nil)

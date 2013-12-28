@@ -28,28 +28,69 @@
     (format *test-stream* "~0I~%"))
   (apply #'values rtn))
 
+(defun with-test-results-context (body-fn
+                                  &key
+                                  collection-place-setter
+                                  (summarize? nil summarize?-p)
+                                  &aux rtn test-result-dbs)
+  "A context that collects test-result-databases
+   if collection-place-setter (lambda (new) (setf collection-place new)) exists
+     anytime we get a new test result we set the place to the new collection
+
+   if summarize? at the end of the block we print the results summary for
+     all tests this defaults to T if no collection-place-setter is provided
+     and nil otherwise"
+  (handler-bind
+      ((all-tests-start
+         (lambda (c &aux (results-db (results c)))
+           (%collect! results-db test-result-dbs)
+           (when collection-place-setter
+             (funcall collection-place-setter (head test-result-dbs))))))
+    (setf rtn (multiple-value-list (funcall body-fn))))
+  ;; we tested multiple systems / had multiple calls to run-tests
+  ;; inside this block
+  (when (or summarize? (and (null summarize?-p)
+                            (null collection-place-setter)))
+    (iter (for res in (head test-result-dbs))
+      (print-failure-summary res)))
+  (apply #'values rtn))
+
+(defmacro with-test-results ((&key collection-place (summarize? nil summarize?-p)) &body body)
+  "see with-test-results-context"
+  `(with-test-results-context
+    (lambda () ,@body)
+    ,@(when collection-place
+        `(:collection-place-setter (lambda (new) (setf ,collection-place new))))
+    ,@(when summarize?-p
+        `(:summarize? ,summarize?))))
+
 (defun with-summary-context (body-fn
                              &key name
-                             &aux (*print-pretty* t) rtn)
-  (if name
-    (format *test-stream* "~%~0I------- STARTING Testing: ~A ~%" name)
-    (format *test-stream* "~%~0I"))
-  (pprint-test-block ()
-    (handler-bind
-        ((test-start
-           (lambda (c) (format *test-stream* "~@:_Starting: ~A~@:_"
-                          (short-full-name c))))
-         (all-tests-complete
-           (lambda (c)
-             (when name
-               (format *test-stream* "~@:_------- Summary of: ~A ~%" name))
-             (%print-result-summary (results c))))
-         (test-complete (lambda (c) (%print-summary (result c)))))
-      (setf rtn (multiple-value-list (funcall body-fn))))
-    (if name
-        (format *test-stream* "~%~0I-------   ENDING Testing: ~A ~%" name)
-        (format *test-stream* "~0I~%")))
-  (apply #'values rtn))
+                             &aux (*print-pretty* t) rtn )
+  (flet ((ensure-results-name (c)
+           (when (and name (null (name (results c))))
+             (setf (name (results c)) name))))
+    (pprint-test-block ()
+      (handler-bind
+          ((all-tests-start
+             (lambda (c )
+               (ensure-results-name c)
+               (if name
+                   (format *test-stream* "~%~0I------- STARTING Testing: ~A ~%" name)
+                   (format *test-stream* "~%~0I"))))
+           (test-start
+             (lambda (c) (format *test-stream* "~@:_Starting: ~A~@:_"
+                            (short-full-name c))))
+           (all-tests-complete
+             (lambda (c)
+               (ensure-results-name c)
+               (%print-result-summary (results c))
+               (if name
+                   (format *test-stream* "~%~0I-------   ENDING Testing: ~A ~%" name)
+                   (format *test-stream* "~0I~%"))))
+           (test-complete (lambda (c) (%print-summary (result c)))))
+        (setf rtn (multiple-value-list (funcall body-fn)))))
+    (apply #'values rtn)))
 
 (defmacro with-summary ((&key name) &body body)
   `(with-summary-context (lambda () ,@body)
@@ -71,8 +112,12 @@
         (errors (len (errors o)))
         (warnings (len (all-warnings o)))
         (empty (len (empty o)))
-        (missing (len (missing o))))
-    (format *test-stream* "~@:_Test Summary (~D tests ~,2F sec)~@:_" total (run-time o))
+        (missing (len (missing o)))
+        (name (short-full-name o)))
+    (format *test-stream* "~@:_Test Summary ")
+    (if name
+        (format *test-stream* "for ~A " name))
+    (format *test-stream*       "(~D tests ~,2F sec)~@:_" total (run-time o))
     (format *test-stream* "  | ~D assertions total~@:_" (+ passed failed))
     (format *test-stream* "  | ~D passed~@:_" passed)
     (format *test-stream* "  | ~D failed~@:_" failed)
@@ -174,6 +219,7 @@
       (iter (for o in (typecase objs
                         (list objs)
                         (list-collector (head objs))))
+        (format *test-stream* "~@:_~A (~A)~@:_-----------~@:_" (short-full-name o) (status o))
         (print-status-summary o s))))
   (:method ((o test-result) (s symbol) &aux (objs (funcall s o)))
     (when objs

@@ -17,7 +17,8 @@
    (:file "summarize")
    (:file "rational")
    (:file "floating-point")
-   (:file "test-anything-protocol"))
+   (:file "test-anything-protocol")
+   (:file "asdf"))
   :depends-on (:alexandria :cl-interpol :iterate :symbol-munger))
 
 (defsystem :lisp-unit2-test
@@ -39,7 +40,8 @@
 (defmethod asdf:perform ((o asdf:test-op) (c (eql (find-system :lisp-unit2))))
   (asdf:load-system :lisp-unit2-test)
   (let ((*package* (find-package :lisp-unit2-tests)))
-    (eval (read-from-string "(with-summary () (run-tests))"))))
+    (eval (read-from-string
+           "(with-summary (:name :lisp-unit) (run-tests))"))))
 
 
 #|

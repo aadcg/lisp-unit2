@@ -24,6 +24,16 @@
               (tail o) c))
     o))
 
+(defgeneric %collect-new (it object &key test key)
+  (:method (it (o null) &key test key)
+    (declare (ignore test key) )
+    (%collect it (make-instance 'list-collector) ))
+  (:method (it (o list-collector)
+            &key (test #'eql) (key #'identity))
+    (unless (member it (head o) :key key :test test)
+      (%collect it (make-instance 'list-collector) ))
+    o))
+
 (defgeneric %decollect (it object &key test key)
   (:method (it (o null) &key (test #'eql) (key #'name))
     (declare (ignore it test key))
@@ -45,6 +55,9 @@
 
 (defmacro %collect! (it place)
   `(setf ,place (%collect ,it ,place)))
+
+(defmacro %collect-new! (it place &key (test '#'eql) (key '#'identity))
+  `(setf ,place (%collect-new ,it ,place :test ,test :key ,key)))
 
 (defmacro %decollect! (it place  &key  (test '#'eql) (key '#'identity))
   `(setf ,place (%decollect ,it ,place :test ,test :key ,key)))

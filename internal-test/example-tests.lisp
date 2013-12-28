@@ -164,17 +164,28 @@
   (let ((lisp-unit2::*test-db* *example-db*)
         *debugger-hook*
         (lisp-unit2::*test-stream* (make-broadcast-stream)))
-      (handler-bind ((warning #'muffle-warning))
-        (funcall body-fn))))
+    (handler-bind
+        ((warning #'muffle-warning))
+      (funcall body-fn))))
 
 (defmacro with-meta-test-context (() &body body)
   `(meta-test-context
     (lambda () ,@body)))
 
 (defun %run-meta-tags (tags &aux (lisp-unit2::*test-db* *example-db*))
-  (handler-bind ((lisp-unit2::assertion-pass #'abort)
-                 (lisp-unit2::assertion-fail #'abort))
+  ;; runs the tags from the example tests with all test signals aborted
+  (lisp-unit2:with-test-signals-muffled ()
     (lisp-unit2:run-tests :tags tags)))
+
+(define-test test-with-test-results (:tags '(meta-tests)
+                                     :context-provider #'meta-test-context)
+  (let ( results )
+    (lisp-unit2:with-test-signals-muffled ()
+      (lisp-unit2:with-test-results (:collection-place results)
+        (lisp-unit2:run-tests :tags 'warnings)
+        (lisp-unit2:run-tests :tags 'examples)))
+    (assert-eql 2 (len results))
+    (assert-typep 'lisp-unit2::test-results-db (first results))))
 
 (define-test test-warning-assertions (:tags '(meta-tests)
                                       :context-provider #'meta-test-context)

@@ -59,17 +59,23 @@
    "Organize the unit test documentation and code."))
 
 (defun short-full-name (s)
-  (typecase s
+  (etypecase s
+    (null nil)
     ((or assertion-pass assertion-fail test-result test-start)
      (short-full-name (unit-test s)))
     (test-complete
      (short-full-name (unit-test s)))
+    (test-results-db
+     (short-full-name (name s)))
     (unit-test (short-full-name (name s)))
     (symbol
      (let* ((package (symbol-package s))
             (nick (first (package-nicknames package)))
             (p (or nick (package-name package) "#")))
-       #?"${p}::${s}"))))
+       (if (eql package (load-time-value (find-package :keyword)))
+           #?":${s}"
+           #?"${p}::${s}")))
+    (string s)))
 
 (defmethod print-object ((o unit-test) s)
   "Print the auto-print-items for this instance."
@@ -345,7 +351,8 @@
      -1)))
 
 (defclass test-results-db (test-results-mixin unit-test-control-mixin)
-  ((tests :reader tests :initarg :tests :initform nil)
+  ((name :accessor name :initarg :name :initform nil)
+   (tests :reader tests :initarg :tests :initform nil)
    (results :reader results :initarg :results :initform nil))
   (:documentation
    "Store the results of the tests for further evaluation."))
@@ -416,7 +423,7 @@
            (cons res (funcall status db))
            db))
 
-(defgeneric run-tests (&key tests tags package
+(defgeneric run-tests (&key tests tags package name
                        test-context-provider
                        reintern-package)
   (:documentation
@@ -426,27 +433,31 @@
     and tags are nil (the default), then we run all tests in
     package (defaulting to *package*)
 
+    name is the name of the test run.  Generally expected to be the name of the system
+      being tested.  Can be defaulted with the name parameter of with-summary as well
+
     reintern-package: when looking up tests, first reintern all tests and tags
       in this package. In general this should probably not be used, but is provided
       for convenience in transitioning from lisp-unit 1 to 2 (see: define-test package)
   ")
-  (:method :around (&key tests tags package test-context-provider
+  (:method :around (&key tests tags package test-context-provider  name
                     reintern-package)
     (declare (ignorable tests tags package test-context-provider
-                        reintern-package))
-    (%log-around (#?"Running tests:${tests} tags:${tags} package:${package} context:${test-context-provider}")
+                        reintern-package name))
+    (%log-around (#?"Running tests${name}:${tests} tags:${tags} package:${package} context:${test-context-provider}")
       (call-next-method)))
   (:method (&key
-            tests tags package test-context-provider reintern-package
+            tests tags package test-context-provider reintern-package name
             &aux
             (all-tests (get-tests :tests tests
                                   :tags tags
                                   :package package
                                   :reintern-package reintern-package))
-            (results (make-instance 'test-results-db :tests all-tests))
+            (results (make-instance 'test-results-db :tests all-tests :name name))
             (*results* results))
     (%log #?"Running tests:${all-tests}" :level 0)
-    (signal 'all-tests-start :results results)
+    (with-simple-restart (abort "Cancel this all-tests-start signal")
+      (signal 'all-tests-start :results results))
     (unwind-protect
          (handler-bind ((missing-test
                           (lambda (c) (%collect! (test-name c) (missing results)))))
@@ -459,7 +470,8 @@
               (list #'record-result-context test-context-provider))))
       (setf (end-time results) (get-universal-time)
             (internal-end-time results) (get-internal-real-time))
-      (signal 'all-tests-complete :results results))
+      (with-simple-restart (abort "Cancel this all-tests-complete signal")
+        (signal 'all-tests-complete :results results)))
     results))
 
 (defun combine-contexts (&rest contexts)
@@ -504,7 +516,8 @@
   (check-type u unit-test)
   ;; todo: clear context-provider, data? so that it must be set via signal?
   ;; possibly in an unwind-protect region
-  (signal 'test-start :unit-test u)
+  (with-simple-restart (abort "Cancel this test-start signal")
+    (signal 'test-start :unit-test u))
   (with-simple-restart (continue "Continue running the next test")
     (unwind-protect
          (handler-bind
@@ -522,7 +535,8 @@
                    test-context-provider)))
       (setf (end-time result) (get-universal-time)
             (internal-end-time result) (get-internal-real-time))
-      (signal 'test-complete :result result)))
+      (with-simple-restart (abort "Cancel this test-complete signal")
+        (signal 'test-complete :result result))))
   result)
 
 ;; This is written this way so that erroring test fns show up in the
@@ -536,6 +550,18 @@
       (call-next-method)))
   (:method ((u unit-test) &key test-context-provider)
     (run-test (name u) :test-context-provider test-context-provider)))
+
+(defun test-signals-muffled-context (body-fn)
+  (handler-bind ((lisp-unit2::assertion-pass #'abort)
+                 (lisp-unit2::assertion-fail #'abort)
+                 (lisp-unit2::test-start #'abort)
+                 (lisp-unit2::test-complete #'abort)
+                 (lisp-unit2::all-tests-start #'abort)
+                 (lisp-unit2::all-tests-complete #'abort))
+    (funcall body-fn)))
+
+(defmacro with-test-signals-muffled (()&body body)
+  `(test-signals-muffled-context (lambda () ,@body)))
 
 (pushnew :lisp-unit2 common-lisp:*features*)
 
