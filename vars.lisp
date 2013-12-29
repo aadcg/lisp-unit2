@@ -41,6 +41,12 @@
   (:documentation "Signaled when a single test starts."))
 
 (define-condition all-tests-complete ()
-  ((results :accessor results :initarg :results :initform nil))
+  ((results :accessor results :initarg :results :initform nil)
+   (name :accessor name :initarg :name :initform nil
+         :documentation "Name for this test results"))
   (:documentation
    "Signaled when a test run is finished."))
+
+(define-condition collect-test-results ()
+  ((results :accessor results :initarg :results :initform nil))
+  (:documentation "Signaled that with-test-results should collect this test-result-database"))

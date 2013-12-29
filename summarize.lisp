@@ -40,13 +40,15 @@
    if summarize? at the end of the block we print the results summary for
      all tests this defaults to T if no collection-place-setter is provided
      and nil otherwise"
-  (handler-bind
-      ((all-tests-start
-         (lambda (c &aux (results-db (results c)))
-           (%collect! results-db test-result-dbs)
-           (when collection-place-setter
-             (funcall collection-place-setter (head test-result-dbs))))))
-    (setf rtn (multiple-value-list (funcall body-fn))))
+  (flet ((collect-test-results (c &aux (results-db (results c)))
+           (when results-db
+             (%collect! results-db test-result-dbs)
+             (when collection-place-setter
+               (funcall collection-place-setter (head test-result-dbs))))))
+    (handler-bind
+        ((all-tests-start #'collect-test-results)
+         (collect-test-results  #'collect-test-results))
+      (setf rtn (multiple-value-list (do-contexts body-fn +interop-test-result-contexts+)))))
   ;; we tested multiple systems / had multiple calls to run-tests
   ;; inside this block
   (when (or summarize? (and (null summarize?-p)
@@ -208,7 +210,9 @@
   (:method ((e error))
     (%out "ERROR: ~A" e)
     (%out "~S" e)
-    e))
+    e)
+  (:method (it)
+    (format *test-stream* "~A" it)))
 
 (defgeneric print-status-summary (object status)
   (:method ((db test-results-db) (status list))

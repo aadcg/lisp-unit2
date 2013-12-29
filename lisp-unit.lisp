@@ -352,15 +352,15 @@
 
 (defclass test-results-db (test-results-mixin unit-test-control-mixin)
   ((name :accessor name :initarg :name :initform nil)
-   (tests :reader tests :initarg :tests :initform nil)
-   (results :reader results :initarg :results :initform nil))
+   (tests :accessor tests :initarg :tests :initform nil)
+   (results :accessor results :initarg :results :initform nil))
   (:documentation
    "Store the results of the tests for further evaluation."))
 
 (defmethod initialize-instance :after
     ((ctl test-results-db) &key &allow-other-keys)
   (setf (slot-value ctl 'results)
-        (make-array (len (tests ctl)) :initial-element nil :fill-pointer 0)))
+        (make-array (len (tests ctl)) :initial-element nil :fill-pointer 0 :adjustable t)))
 
 (defclass test-result (test-results-mixin)
   ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
@@ -418,7 +418,7 @@
 
 (defmethod record-result ((res test-result) (db test-results-db)
                           &aux (status (status res)))
-  (vector-push res (results db))
+  (vector-push-extend res (results db))
   (funcall (fdefinition `(setf ,status))
            (cons res (funcall status db))
            db))

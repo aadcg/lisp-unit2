@@ -18,7 +18,7 @@
    (:file "rational")
    (:file "floating-point")
    (:file "test-anything-protocol")
-   (:file "asdf"))
+   (:file "interop"))
   :depends-on (:alexandria :cl-interpol :iterate :symbol-munger))
 
 (defsystem :lisp-unit2-test

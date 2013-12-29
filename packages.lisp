@@ -30,11 +30,16 @@
      ;; rational
      :assert-rational-equal :rational-equal
      )
+    ;; signals
+    (:export
+     :test-start :test-complete :all-tests-start :all-tests-complete
+     :missing-test :collect-test-results
+     :assertion-pass :assert-fail)
     ;; Functions for managing tests
     (:export
      ;; statuses
      :errors :failed :warnings :passed :missing :empty
-     :define-test
+     :define-test :*test-db*
      :list-tests
      :get-tests
      :test-code
@@ -44,7 +49,10 @@
      :run-test
      :reset-test-database
      :with-test-signals-muffled
-     :unit-test :*unit-test*)
+     :unit-test :*unit-test*
+     :*results* :*result*
+     :test-results-db :test-result
+     :failure-result)
     ;; Functions for managing tags
     (:export
      :list-tags
