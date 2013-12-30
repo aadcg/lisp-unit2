@@ -37,7 +37,7 @@
     (dotimes (i 5)
       (assert-equal i (my-sqrt (* i i)) i)))
 
-  (define-test cl-user::my-sqrt (:tags '(examples cl-user-tests))
+  (define-test lisp-unit2-test-2::my-sqrt (:tags '(examples cl-user-tests))
     (dotimes (i 5)
       (assert-equal i (my-sqrt (* i i)) i)))
 
@@ -174,7 +174,8 @@
   `(meta-test-context
     (lambda () ,@body)))
 
-(defun %run-meta-tags (tags &aux (lisp-unit2::*test-db* *example-db*))
+(defun %run-meta-tags (tags &aux (lisp-unit2::*test-db* *example-db*)
+                            (*package* (find-package :lisp-unit2-tests)))
   ;; runs the tags from the example tests with all test signals aborted
   (lisp-unit2:with-test-signals-muffled ()
     (lisp-unit2:run-tests :tags tags)))

@@ -58,25 +58,6 @@
   (:documentation
    "Organize the unit test documentation and code."))
 
-(defun short-full-name (s)
-  (etypecase s
-    (null nil)
-    ((or assertion-pass assertion-fail test-result test-start)
-     (short-full-name (unit-test s)))
-    (test-complete
-     (short-full-name (unit-test s)))
-    (test-results-db
-     (short-full-name (name s)))
-    (unit-test (short-full-name (name s)))
-    (symbol
-     (let* ((package (symbol-package s))
-            (nick (first (package-nicknames package)))
-            (p (or nick (package-name package) "#")))
-       (if (eql package (load-time-value (find-package :keyword)))
-           #?":${s}"
-           #?"${p}::${s}")))
-    (string s)))
-
 (defmethod print-object ((o unit-test) s)
   "Print the auto-print-items for this instance."
   (print-unreadable-object (o s :type t :identity t)
@@ -136,26 +117,24 @@
     (when reintern-package
       (setf tests (%in-package tests reintern-package))
       (setf tags (%in-package tags reintern-package)))
-    (cond
-      ;; defaults to pulling up all tests in the current package
-      ((and (null tests) (null tags) (null package))
-       (head (gethash *package* (package-index db))))
-      (t
-       (remove-duplicates
-        (append
-         (iter (for p in (alexandria:ensure-list package))
-           (appending (head (gethash (find-package p) (package-index db)))))
-         (iter (for tag in (alexandria:ensure-list tags))
-           (appending (head (gethash tag (tag-index db)))))
-         (iter (for name in (alexandria:ensure-list tests))
-           (for test = (etypecase name
-                         (null nil)
-                         (unit-test name)
-                         (symbol (gethash name (name-index *test-db*)))))
-           (if test
-               (collect test)
-               (warn 'missing-test :test-name test))))
-        :key #'name)))))
+    ;; defaults to pulling up all tests in the current package
+    (when (and (null tests) (null tags) (null package))
+      (setf package (package-name *package*)))
+    (remove-duplicates
+     (append
+      (iter (for p in (alexandria:ensure-list package))
+        (appending (head (gethash (find-package p) (package-index db)))))
+      (iter (for tag in (alexandria:ensure-list tags))
+        (appending (head (gethash tag (tag-index db)))))
+      (iter (for name in (alexandria:ensure-list tests))
+        (for test = (etypecase name
+                      (null nil)
+                      (unit-test name)
+                      (symbol (gethash name (name-index *test-db*)))))
+        (if test
+            (collect test)
+            (warn 'missing-test :test-name test))))
+     :key #'name)))
 
 
 

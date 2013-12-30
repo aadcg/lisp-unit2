@@ -6,3 +6,5 @@
                 #:failed #:failed-assertions
                 #:passed #:passed-assertions
                 #:warnings #:missing #:empty))
+
+(defpackage :lisp-unit2-test-2)

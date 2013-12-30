@@ -1,4 +1,5 @@
 (in-package :lisp-unit2)
+(cl-interpol:enable-interpol-syntax)
 
 (define-condition assertion-pass (condition)
   ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
@@ -53,32 +54,31 @@ vice versa."
     :test #'typep
     :full-form ',whole))
 
-(defmacro assert-signal (&whole whole condition form &rest extras)
-  (let ((body `(block assert-signal
-                (handler-bind
-                    ((condition #'(lambda (c)
-                                    (when (typep c ,condition)
-                                      (when (typep c 'warning)
-                                        (muffle-warning c))
-                                      (return-from assert-signal c)))))
-                  ,form)
-                nil)))
+(defun expand-signaled-handler (form condition)
+  (alexandria:with-unique-names (signaled)
+    `(let (,signaled)
+      (block ,signaled
+        (handler-bind
+            ((condition #'(lambda (c)
+                            (when (typep c ,condition)
+                              (when (typep c 'warning)
+                                (muffle-warning c))
+                              (setf ,signaled c)
+                              (when (typep c 'error)
+                                (return-from ,signaled))
+                              ))))
+          ,form))
+      ,signaled)))
 
+(defmacro assert-signal (&whole whole condition form &rest extras)
+  (let ((body (expand-signaled-handler form condition)))
     `(expand-assert
       'signal-result
       ,form ,body ,condition ,extras
       :full-form ',whole)))
 
 (defmacro assert-no-signal (&whole whole condition form &rest extras)
-  (let ((body `(block assert-no-signal
-                (handler-bind ((condition #'(lambda (c)
-                                              (when (typep c ,condition)
-                                                (when (typep c 'warning)
-                                                  (muffle-warning c))
-                                                (return-from assert-no-signal c)))))
-                  ,form)
-                nil)))
-
+  (let ((body (expand-signaled-handler form condition)))
     `(expand-assert
       'signal-result
       ,form ,body ,nil ,extras
@@ -270,3 +270,22 @@ vice versa."
 (defmacro with-failure-debugging (() &body body)
   "A context macro that invokes the debugger on failed assertions"
   `(with-assertion-debugging-context (lambda () ,@body)))
+
+(defun short-full-name (s)
+  (etypecase s
+    (null nil)
+    ((or assertion-pass assertion-fail test-result test-start)
+     (short-full-name (unit-test s)))
+    (test-complete
+     (short-full-name (unit-test s)))
+    (test-results-db
+     (short-full-name (name s)))
+    (unit-test (short-full-name (name s)))
+    (symbol
+     (let* ((package (symbol-package s))
+            (nick (first (package-nicknames package)))
+            (p (or nick (package-name package) "#")))
+       (if (eql package (load-time-value (find-package :keyword)))
+           #?":${s}"
+           #?"${p}::${s}")))
+    (string s)))
