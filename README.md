@@ -113,6 +113,31 @@ while maintaining its benefits and workflow
 
 See the internal test suite for more and better examples (internal-test/*)
 
+#### Define-test
+
+The `define-test` macro is the primary way to install a
+test. `define-test` creates a function with the same name as the test,
+which can be called to execute the test.  This is nice because there
+is a direct way to call every test, but also because the test has
+implicit source destination and thus "go-to-definition" on any
+printing of the test name will take you directly to the test in
+question.  `definte-test` also creates a unit-test object and inserts
+it into the test-database.
+
+The test body is compiled at the time of definition (so that any
+compile warnings or errors are immediately noticable) and also before
+every run of the test (so that macro expansions are never out of
+date).
+
+* `package`: if package is provided the test name and all tags are
+  reinterned into that package before definition.  This is mostly for
+  porting lisp-unit systems where test-names were not functions and so
+  tests could be named the same as the function they tested.
+* `context-provider` (see Contexts below): a (single or tree of) context
+  fn that will be applied around the test body
+* `tags`: a list of symbols used to oranize tests into groups (not
+  heirarchical)
+
 #### Test Organization: Names, Tags, and Packages
 
 Tests are organized by their name and by tags.  Both of these are
@@ -149,6 +174,78 @@ or to have tests and tags be in an explicitly referenced package, eg:
 Tests are organized into the `*test-db*` which is an instance
 `test-database`.  These can be rebound if you needed to write tests
 about your test framework (see the internal example-tests).
+
+##### Suites 
+
+While lisp-unit does not have any specific notion of a suite, it is
+believed that the tests are composible enough that explicit test
+suites are not needed.
+
+One suggestion would be to have named functions that run you specific
+set of tests:
+
+```
+(defun run-{suite} ()
+  (lisp-unit2:run-tests
+    :name :{suite}
+    {stuff to test} ))
+
+(defun run-symbol-munger-and-lisp-unit2-tests () 
+  (lisp-unit2:run-tests
+    :name :symbol-munger-and-lisp-unit2-tests
+    :package '(:symbol-munger-tests :lisp-unit2-tests)))
+
+(defun run-error-and-basic-tests () 
+  (lisp-unit2:run-tests
+    :name :error-and-basic-tests
+    :tests '(symbol-munger-test::test-basic)
+    :tags '(:errors lisp-unit2-tests::errors)))
+```
+
+Another suggestion would be to define tests that call other tests:
+```
+(define-test suite-1 (:tags '(suites))
+  (test-fn-1) ;; calls test-fn-1 unit-test
+  (lisp-unit2::run-tests ...) ; runs an entire other set of unit tests)
+```
+
+#### Assertions
+
+All `assert-*` macros signal `assertion-pass` and `assertion-fail` by
+comparing their expected results to the actual results during
+exection.  All other values in the assert forms are assumed to be
+extra data to aid debugging.
+
+`assert-{equality-test}` macros compare the actual to the expected
+value of each of the values returned from expected (see:
+multiple-values) (eg: `(assert-eql exp act)` => `(eql act exp)`) This
+ordering was used so that functions like typep, member, etc could be
+used as test.
+
+`assert-false` and `assert-true` simply check the generic-boolean
+truth of their first arg (eg: null and (not null)
+
+`assert-{signal}` and `assert-{no-signal}` macros are used for testing
+condition protocols.  Signals that are expected/not-expected handled.
+
+##### Multiple-values and assertions
+
+Actual values are compared to all expected values, that is:
+
+```
+LISP-UNIT2-TESTS> (lisp-unit2:with-assertion-summary ()
+                    (assert-eql (values 1 2) (values 1 2 3)))
+
+
+<No Test>:Passed (ASSERT-EQL (VALUES 1 2) (VALUES 1 2 3))
+T
+LISP-UNIT2-TESTS> (lisp-unit2:with-assertion-summary ()
+                    (assert-eql (values 1 2 3) (values 1 2)))
+
+Failed Form: (ASSERT-EQL (VALUES 1 2 3) (VALUES 1 2))
+Expected 1; 2; 3
+but saw 1; 2
+```
 
 #### Debugging
 

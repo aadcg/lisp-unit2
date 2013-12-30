@@ -2,6 +2,7 @@
 
 ;;; Symbols exported from the floating point extension
 
+;;; TODO: put these in the package file
 ;;; Global variables
 (export
  '(*measure* *epsilon* *significant-figures*))

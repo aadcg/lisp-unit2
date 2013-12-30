@@ -78,6 +78,8 @@
 
   (define-test subtract-integer-test (:tags '(subtract integer examples))
     "Test subtract-integer for values and errors."
+    (add-integer-test);; just to prove tests calling other tests work
+    (lisp-unit2:run-tests :tests 'add-integer-test)
     (assert-eql 1 (subtract-integer 3 2))
     (assert-error 'type-error (subtract-integer 3.0 2))
     (assert-error 'type-error (subtract-integer 2 3.0)))
@@ -184,7 +186,8 @@
       (lisp-unit2:with-test-results (:collection-place results)
         (lisp-unit2:run-tests :tags 'warnings)
         (lisp-unit2:run-tests :tags 'examples)))
-    (assert-eql 2 (len results))
+    ;; subtract-integer-test calls run-tests
+    (assert-eql 3 (len results))
     (assert-typep 'lisp-unit2::test-results-db (first results))))
 
 (define-test test-warning-assertions (:tags '(meta-tests)
@@ -214,7 +217,7 @@
   (let ((res (%run-meta-tags nil)))
     (assert-eql 12 (len (lisp-unit2::tests res)))
     (assert-eql 6 (len (lisp-unit2::failed-assertions res)))
-    (assert-eql 27 (len (lisp-unit2::passed-assertions res)))
+    (assert-eql 33 (len (lisp-unit2::passed-assertions res)))
     (assert-eql 1 (len (lisp-unit2::errors res)))
     (assert-eql 1 (len (lisp-unit2::warnings res)))))
 

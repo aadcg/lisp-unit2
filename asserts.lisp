@@ -14,10 +14,6 @@
                        (or (short-full-name c) "<UNIT-TEST>"))
                (print-summary (failure c))))))
 
-(defun logically-equal (x y)
-  "Return true if x and y are both false or both true."
-  (eql (not x) (not y)))
-
 (defun set-equal (list1 list2 &rest initargs &key key (test #'equal))
   "Return true if every element of list1 is an element of list2 and
 vice versa."
@@ -57,43 +53,36 @@ vice versa."
     :test #'typep
     :full-form ',whole))
 
-(defmacro assert-error (&whole whole condition form &rest extras)
-  "Assert whether form signals condition."
-  `(expand-assert 'error-result ,form (expand-error-form ,form)
-                  ,condition ,extras
-    :full-form ',whole))
-
 (defmacro assert-signal (&whole whole condition form &rest extras)
-  (alexandria:with-unique-names (signalled)
-    (let ((body `(let (,signalled)
-                  (handler-bind ((condition #'(lambda (c)
-                                              (when (typep c ,condition)
-                                                (setf ,signalled c)
-                                                (when (typep c 'warning)
-                                                  (muffle-warning c))))))
-                    ,form)
-                  ,signalled)))
+  (let ((body `(block assert-signal
+                (handler-bind
+                    ((condition #'(lambda (c)
+                                    (when (typep c ,condition)
+                                      (when (typep c 'warning)
+                                        (muffle-warning c))
+                                      (return-from assert-signal c)))))
+                  ,form)
+                nil)))
 
-      `(expand-assert
-        'signal-result
-        ,form ,body ,condition ,extras
-        :full-form ',whole))))
+    `(expand-assert
+      'signal-result
+      ,form ,body ,condition ,extras
+      :full-form ',whole)))
 
 (defmacro assert-no-signal (&whole whole condition form &rest extras)
-  (alexandria:with-unique-names (signalled)
-    (let ((body `(let (,signalled)
-                  (handler-bind ((condition #'(lambda (c)
-                                                (when (typep c ,condition)
-                                                  (setf ,signalled c)
-                                                  (when (typep c 'warning)
-                                                    (muffle-warning c))))))
-                    ,form)
-                  ,signalled)))
+  (let ((body `(block assert-no-signal
+                (handler-bind ((condition #'(lambda (c)
+                                              (when (typep c ,condition)
+                                                (when (typep c 'warning)
+                                                  (muffle-warning c))
+                                                (return-from assert-no-signal c)))))
+                  ,form)
+                nil)))
 
-      `(expand-assert
-        'signal-result
-        ,form ,body ,nil ,extras
-        :full-form ',whole))))
+    `(expand-assert
+      'signal-result
+      ,form ,body ,nil ,extras
+      :full-form ',whole)))
 
 (defmacro assert-warning (condition form &rest extras)
   `(assert-signal ,condition ,form ,@extras))
@@ -101,14 +90,17 @@ vice versa."
 (defmacro assert-no-warning (condition form &rest extras)
   `(assert-no-signal ,condition ,form ,@extras))
 
+(defmacro assert-error (condition form &rest extras)
+  "Assert whether form signals condition."
+  `(assert-signal ,condition ,form ,@extras))
+
+(defmacro assert-no-error (condition form &rest extras)
+  "Assert whether form signals condition."
+  `(assert-no-signal ,condition ,form ,@extras))
+
 (defmacro assert-expands (expansion form &rest extras)
   "Assert whether form expands to expansion."
   `(expand-assert 'macro-result ,form (expand-macro-form ,form) ',expansion ,extras))
-
-(defmacro assert-false (&whole whole form &rest extras)
-  "Assert whether the form is false."
-  `(expand-assert 'boolean-result ,form ,form nil ,extras
-    :full-form ',whole))
 
 (defmacro assert-equality (&whole whole test expected form &rest extras)
   "Assert whether expected and form are equal according to test."
@@ -123,7 +115,14 @@ vice versa."
 
 (defmacro assert-true (&whole whole form &rest extras)
   "Assert whether the form is true."
-  `(expand-assert 'boolean-result ,form ,form t ,extras
+  `(expand-assert 'equal-result ,form ,form t ,extras
+    :test #'(lambda (x y) (and x y))
+    :full-form ',whole))
+
+(defmacro assert-false (&whole whole form &rest extras)
+  "Assert whether the form is false."
+  `(expand-assert 'equal-result ,form ,form nil ,extras
+    :test #'(lambda (x y) (and (not x) (not y)))
     :full-form ',whole))
 
 (defmacro expand-assert (type form body expected extras
@@ -138,10 +137,6 @@ vice versa."
     :full-form (or ,full-form
                 '(,type ,expected ,form))))
 
-(defmacro expand-error-form (form)
-  "Wrap the error assertion in HANDLER-CASE."
-  `(handler-case ,form
-     (condition (error) error)))
 
 (defmacro expand-output-form (form)
   "Capture the output of the form in a string."
@@ -191,9 +186,6 @@ vice versa."
 
 (defclass macro-result (failure-result) ()
   (:documentation "Result of a failed macro expansion assertion."))
-
-(defclass boolean-result (failure-result) ()
-  (:documentation "Result of a failed boolean assertion."))
 
 (defclass output-result (failure-result) ()
   (:documentation "Result of a failed output assertion."))
@@ -248,8 +240,6 @@ vice versa."
         (typep (car actual) (car expected))))
       (macro-result
        (%form-equal (first expected) (first actual)))
-      (boolean-result
-       (logically-equal (car actual) (car expected)))
       (output-result
        (string=
         (string-trim '(#\newline #\return #\space) (car actual))
