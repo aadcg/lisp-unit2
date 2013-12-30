@@ -416,6 +416,8 @@ Example test-with-contexts defintion:
 ### Future Features
 * Benchmarking tools
 * More interop with other test systems
+* Database layer to store test results to a database (so that we can
+  track bugs / test durations) over time (goes with benchmarking)
 
 [orig]: <http://www.cs.northwestern.edu/academics/courses/325/readings/lisp-unit.html>
   "Original Lisp Unit"
