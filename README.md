@@ -172,25 +172,26 @@ failing tests. `print-failure-summary` can be called to print only
 messages about failures, warnings, errors and empty tests (empty tests
 had no assertions).
 
-When running interactively `with-summary` can provide real-time output
+When running interactively `with-summary` can provide real-time output,
 printing start messages and result messages for each test.
 `with-assertion-summary` provides even more detailed output printing a
 message for each assertion passed or failed.
 
-Test results (from many runs) can be captured using
+Test results (from one or many runs) can be captured using
 `with-test-results`.  The arg: `collection-place` will copy all the
-results as they arrive into a location of your choosing. The arg:
-`summarize?` will print a failure summary of each test-run after all
-of the tests are finished running.  This is useful for collecting
-separate results for many packages or systems (see
-test-asdf-system-recursive).  If no args are provided summarize? is
-defaulted to true.
+results as they arrive into a location of your choosing (eg: variable,
+object slot). The arg: `summarize?` will print a failure summary of
+each test-run after all of the tests are finished running.  This is
+useful for collecting separate results for many packages or systems
+(see test-asdf-system-recursive).  If no args are provided summarize?
+is defaulted to true.
 
 ##  Remaining Tasks
 *  Expanded internal testing.
 
 ### Future Features
 * Benchmarking tools
+* More interop with other test systems
 
 [orig]: <http://www.cs.northwestern.edu/academics/courses/325/readings/lisp-unit.html>
   "Original Lisp Unit"
