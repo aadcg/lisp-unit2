@@ -66,6 +66,8 @@
      :with-test-results-context
      :with-assertion-summary
      :with-assertion-summary-context
+     :with-failure-debugging
+     :with-failure-debugging-context
      :test-names
      :print-summary
      :print-failure-summary

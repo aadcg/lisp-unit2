@@ -7,7 +7,12 @@
 (define-condition assertion-fail (condition)
   ((unit-test :accessor unit-test :initarg :unit-test :initform *unit-test*)
    (assertion :accessor assertion :initarg :assertion :initform nil)
-   (failure :accessor failure :initarg :failure :initform nil)))
+   (failure :accessor failure :initarg :failure :initform nil))
+  (:report (lambda (c s)
+             (let ((*test-stream* s))
+               (format *test-stream* "Failed Assertion in ~A~%"
+                       (or (short-full-name c) "<UNIT-TEST>"))
+               (print-summary (failure c))))))
 
 (defun logically-equal (x y)
   "Return true if x and y are both false or both true."
@@ -266,3 +271,12 @@ vice versa."
                             (when extras (funcall extras)) test))))
     ;; Return the result
     result))
+
+(defun with-failure-debugging-context (body-fn)
+  "A context that invokes the debugger on failed assertions"
+  (handler-bind ((assertion-fail #'invoke-debugger))
+    (funcall body-fn)))
+
+(defmacro with-failure-debugging (() &body body)
+  "A context macro that invokes the debugger on failed assertions"
+  `(with-assertion-debugging-context (lambda () ,@body)))

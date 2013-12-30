@@ -105,7 +105,7 @@
 
 (defun %out (s &rest args
                &aux (*print-pretty* t))
-  (format *test-stream* "~@:_~?" (or s "") args))
+  (format *test-stream* "~?~@:_" (or s "") args))
 
 (defmethod %print-result-summary ((o test-results-db))
   (let ((total (len (tests o)))
@@ -174,7 +174,7 @@
     (when (extras result)
       (iter (for (f v) on (extras result) by #'cddr)
         (if (equalp f v)
-            (%out f)
+            (%out "~S" f)
             (%out "~S => ~S" f v))))
     result)
 
@@ -182,7 +182,8 @@
     (%out "Expected ~{~S~^; ~} " (expected result))
     (format *test-stream*
             "~<~:;but saw ~{~S~^; ~}~>"
-            (actual result)))
+            (actual result))
+    (%out ""))
 
   (:method ((result error-result))
     (%out "~@[Should have signalled ~{~S~^; ~} but saw~]"
@@ -195,6 +196,7 @@
     (format *test-stream*
             "~<~:;but saw ~{~S~^; ~}~>"
             (actual result))
+    (%out "")
     result)
 
   (:method ((result output-result))
@@ -212,7 +214,7 @@
     (%out "~S" e)
     e)
   (:method (it)
-    (format *test-stream* "~A" it)))
+    (%out "~A" it)))
 
 (defgeneric print-status-summary (object status)
   (:method ((db test-results-db) (status list))
