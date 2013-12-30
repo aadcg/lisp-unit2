@@ -1,8 +1,5 @@
 (in-package :lisp-unit2)
 
-(defparameter +interop-test-result-contexts+
-  (list #+lisp-unit #'lisp-unit1-collection-context))
-
 (defgeneric convert-test-results (input test-system-name)
   (:documentation "Convert the test results from a given test system to lisp-unit2:test-results-db"))
 
@@ -91,3 +88,7 @@
       (%collect! (unit-test new-res) (lisp-unit2::tests new-db))
       (lisp-unit2::record-result new-res new-db))
     new-db))
+
+
+(defparameter +interop-test-result-contexts+
+  (list #+lisp-unit #'lisp-unit1-collection-context))
