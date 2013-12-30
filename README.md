@@ -86,12 +86,15 @@ while maintaining its benefits and workflow
    their own package, the test and the fn being tested can share the
    same name. (Tests are compiled to a function named after the test
    that runs it and an object in the test database)
+
 ```
 (lisp-unit2:define-test my-tests::test-subtraction 
     (:tags '(my-tests::bar))
   (assert-eql 1 (- 2 1)))
 ```
+
 3. Run all tests in your package
+
 ```
 ;; with summary provides results while the tests are running
 (with-summary ()
