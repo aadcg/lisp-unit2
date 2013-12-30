@@ -145,9 +145,13 @@ is to either have tests be named differently from the functions they test
 or to have tests and tags be in an explicitly referenced package, eg:
 `(define-test my-tests::test1 (:tags '(my-tests::tag1)) ...)`
 
+Tests are organized into the `*test-db*` which is an instance
+`test-database`.  These can be rebound if you needed to write tests
+about your test framework (see the internal example-tests).
+
 #### Debugging
 
-Debugging is controlled by *debugger-hook* (as is usual in common-lisp).
+Debugging is controlled by `*debugger-hook*` (as is usual in common-lisp).
 You can make lisp-unit simply record the error and move on by binding
 `*debugger-hook*` to nil around your `run-tests` call.
 
@@ -157,10 +161,10 @@ to the unit-test run.
 
 #### Output and Results
 
-All output is printed to *test-stream* (which by default is
-*standard-output*).  Most forms do not output results by default,
+All output is printed to `*test-stream*` (which by default is
+`*standard-output*`).  Most forms do not output results by default,
 instead returning a result object.  All results objects can be printed
-(to *test-stream*) by calling `print-summary` on the object in
+(to `*test-stream*`) by calling `print-summary` on the object in
 question.  
 
 `print-summary` prints infomation about passing as well as
