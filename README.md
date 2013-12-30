@@ -110,6 +110,75 @@ while maintaining its benefits and workflow
 
 See the internal test suite for more and better examples (internal-test/*)
 
+#### Test Organization: Names, Tags, and Packages
+
+Tests are organized by their name and by tags.  Both of these are
+symbols in some package.  Tests can be retrieved by their name, the
+package that their name is in, and any of the tags that reference the
+test.
+
+The most common way to retrieve and run unit tests is run-tests which
+calls get-tests.
+
+`(lisp-unit2:run-tests &key tests tags package reintern-package)`
+`(lisp-unit2:get-tests &key tests tags package reintern-package)`
+
+Both of these functions accept:
+ * tests: a single or list of symbols or unit-test objects
+ * tags: a single or list of symbols.  All tests in these tags will be
+   returned
+ * package:  a single or list of packages (names or objects)
+
+If no arguments are provided lisp-unit2 will run all tests in *package*
+
+In some cases, particularly when converting from lisp-unit(1) we need
+our tests to be in a different package (because tests are functions in
+their name's package). In lisp-unit these tests would not conflict
+with a function named the same (because tests were not functions). To
+ease conversion, the reintern-package argument will reintern all test
+names and tags provided into a different package.  Define test accepts 
+a `package` argument that mirrors this functionality.  Suggested usage
+is to either have tests be named differently from the functions they test
+or to have tests and tags be in an explicitly referenced package, eg:
+`(define-test my-tests::test1 (:tags '(my-tests::tag1)) ...)`
+
+#### Debugging
+
+Debugging is controlled by *debugger-hook* (as is usual in common-lisp).
+You can make lisp-unit simply record the error and move on by binding
+`*debugger-hook*` to nil around your `run-tests` call.
+
+If you would like to debug failed assertions you can wrap your call in
+`with-failure-debugging` or apply the `with-failure-debugging-context`
+to the unit-test run.
+
+#### Output and Results
+
+All output is printed to *test-stream* (which by default is
+*standard-output*).  Most forms do not output results by default,
+instead returning a result object.  All results objects can be printed
+(to *test-stream*) by calling `print-summary` on the object in
+question.  
+
+`print-summary` prints infomation about passing as well as
+failing tests. `print-failure-summary` can be called to print only
+messages about failures, warnings, errors and empty tests (empty tests
+had no assertions).
+
+When running interactively `with-summary` can provide real-time output
+printing start messages and result messages for each test.
+`with-assertion-summary` provides even more detailed output printing a
+message for each assertion passed or failed.
+
+Test results (from many runs) can be captured using
+`with-test-results`.  The arg: `collection-place` will copy all the
+results as they arrive into a location of your choosing. The arg:
+`summarize?` will print a failure summary of each test-run after all
+of the tests are finished running.  This is useful for collecting
+separate results for many packages or systems (see
+test-asdf-system-recursive).  If no args are provided summarize? is
+defaulted to true.
+
 ##  Remaining Tasks
 *  Expanded internal testing.
 
