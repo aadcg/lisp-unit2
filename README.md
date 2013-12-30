@@ -127,10 +127,11 @@ calls get-tests.
 `(lisp-unit2:get-tests &key tests tags package reintern-package)`
 
 Both of these functions accept:
- * tests: a single or list of symbols or unit-test objects
- * tags: a single or list of symbols.  All tests in these tags will be
-   returned
- * package:  a single or list of packages (names or objects)
+
+* tests: a single or list of symbols or unit-test objects
+* tags: a single or list of symbols.  All tests in these tags will be
+  returned
+* package:  a single or list of packages (names or objects)
 
 If no arguments are provided lisp-unit2 will run all tests in *package*
 
@@ -167,10 +168,11 @@ instead returning a result object.  All results objects can be printed
 (to `*test-stream*`) by calling `print-summary` on the object in
 question.  
 
-`print-summary` prints infomation about passing as well as
-failing tests. `print-failure-summary` can be called to print only
-messages about failures, warnings, errors and empty tests (empty tests
-had no assertions).
+`print-summary` prints infomation about passing as well as failing
+tests. `print-failure-summary` can be called to print only messages
+about failures, warnings, errors and empty tests (empty tests had no
+assertions).  Care is taken to print tests with their short, but still
+fully packaged symbol-name (so that go-to-definition) works.
 
 When running interactively `with-summary` can provide real-time output,
 printing start messages and result messages for each test.
@@ -185,6 +187,131 @@ each test-run after all of the tests are finished running.  This is
 useful for collecting separate results for many packages or systems
 (see test-asdf-system-recursive).  If no args are provided summarize?
 is defaulted to true.
+
+##### TAP Output
+
+Lisp-unit2 provides TAP (test anything protocol) test results (printed
+in such a way that jenkins tap plugin can parse them).
+
+`with-tap-summary` prints tap results as the tests run `write-tap`,
+`write-tap-to-file` accept a test-results database and write the TAP
+results either to *test-stream* or a file
+
+#### ASDF
+
+`asdf:test-system` is assumed to be the canonical way of testing a
+every system, and so lisp-unit2 makes effort to work well with
+test-system
+
+Here is an example asdf:test-sytem definition, which will print the
+verbose summary of the tests as they run.
+
+```
+(defmethod asdf:perform ((o asdf:test-op) (c (eql (find-system :symbol-munger))))
+  (asdf:oos 'asdf:load-op :symbol-munger-test)
+  (let ((*package* (find-package :symbol-munger-test)))
+    (eval (read-from-string "
+            (lisp-unit2:with-summary (:name :symbol-munger)
+             (lisp-unit2:run-tests :package :symbol-munger-test))
+      "))))
+```
+
+Additionally, lisp-unit2 provides test-asdf-system-recursive which
+accepts a (list or single) system name, looks up all its depedencies
+and calls asdf:tests-system on each listed system.  Any lisp-unit or
+lisp-unit2 test-results-dbs are collected and returned at the end.  A
+failure summary is also printed for each result db (so that after
+running many tests you are presented with a short synopsis of what ran
+and what failed.
+
+There is an interop layer for converting test results from other
+systems to lisp-unit2 test results, so that we can gather and
+summarize more information.  Currently this is only implemented for
+lisp-unit1, but patches would be welcome to allow collecting test
+results from any other lisp test systems. (This is currently a bit
+tedious, simplification patches welcome as well, see interop.lisp).
+
+#### Signals
+
+Signals are used throughout lisp-unit2 to communicate progress and
+results throughout lisp unit
+
+* `missing-test`: when asked to run a test that does not exist
+* `test-start`: when a unit test starts, contains a ref to the
+  unit-test
+* `test-complete`: when a test completes contains a ref to results for
+  that test (test-result)
+* `all-tests-start`, `all-tests-complete`: signaled at the beginning
+  and end of run-tests, contains a ref to the test-results-db
+* `collect-test-results`: used in it interop to send results to 
+  `with-test-results`
+* `assertion-pass`: signaled when an assertion passes
+* `assertion-fail`: signaled when an assertion fails
+
+All signals have an abort interupt which simply cancels the signal.
+This is mostly used for meta-testing (ie: testing lisp-unit2), but
+there are conceivably other uses.
+
+#### Contexts / Fixtures
+
+Contexts allow you to manipulate the dynamic state of a given
+unit-test or test-run.  These are functions of a single required
+argument (a thunk), that they execute inside of a new/changed dynamic
+environment.
+
+A good example is the with-failure-debugging-context, which simply
+invokes the debugger whenever we signal a failed assertion
+
+```
+(defun with-failure-debugging-context (body-fn)
+  "A context that invokes the debugger on failed assertions"
+  (handler-bind ((assertion-fail #'invoke-debugger))
+    (funcall body-fn)))
+```
+
+Both `define-test` and `run-tests` accept a tree of contexts that is
+flattened and turned into a single context function (see
+`combine-contexts`).  This function then executes the body-fn for us
+(see: `do-contexts`).  
+
+This should allow any type of manipulation of the current lisp-unit2
+environment through access to handling signals and setting up and
+tearing down dynamic environments.
+
+Example Contexts: 
+
+* rolled-back-database-context: open a connection to the dev database and
+  a transaction that we will abort at the end
+* http-context: establish a dummy http context for use in testing web
+  connected things
+* html-output-context: establish global html building objects needed for 
+  html output functions to work
+* dev-mode-context: bind any dynamic variables related to DEV/LIVE mode
+* failure-debugging-context: (as above) handling signals and debugging
+  them instead of only recording them
+
+Example test-with-contexts defintion:
+
+```
+(defmacro db-render-test (name (&rest args) &body body)
+  `(lisp-unit2:define-test ,name
+    (:tags ',args
+     :context-provider
+     (list #'test-context #'dom-context #'database-context )
+     :package :test-objects)
+    ,@body))
+```
+
+#### Data Model
+
+* `test-database`: a list and some indexes of all installed tests
+* `unit-test`: an object containing the name, code, contexts, and
+  documentation for a single unit-test
+* `test-results-db`: a collection of results from a single `run-tests` call
+* `test-result`: the result of running a single unit test
+* `failure-result`: information useful for debugging failures (eg: unit-test,
+  the form that failed, the expected and actual results)
+
 
 ##  Remaining Tasks
 *  Expanded internal testing.

@@ -351,11 +351,25 @@
      -1)))
 
 (defclass test-results-db (test-results-mixin unit-test-control-mixin)
-  ((name :accessor name :initarg :name :initform nil)
+  ((name :initarg :name :initform nil)
    (tests :accessor tests :initarg :tests :initform nil)
    (results :accessor results :initarg :results :initform nil))
   (:documentation
    "Store the results of the tests for further evaluation."))
+
+(defmethod name ((o test-results-db))
+  (or (slot-value o 'name)
+      (symbol-munger:combine-symbols
+       (package-names o)
+       :package :keyword
+       :separator '-&-)))
+
+(defmethod (setf name) (new (o test-results-db))
+  (setf (slot-value o 'name) new))
+
+(defmethod package-names ((o test-results-db))
+  (iter (for test in-sequence (tests o))
+    (adjoining (package-name (symbol-package (name test))))))
 
 (defmethod initialize-instance :after
     ((ctl test-results-db) &key &allow-other-keys)
@@ -434,11 +448,13 @@
     package (defaulting to *package*)
 
     name is the name of the test run.  Generally expected to be the name of the system
-      being tested.  Can be defaulted with the name parameter of with-summary as well
+      being tested.  Can be defaulted with the name parameter of with-summary as well.
+      can also be defaulted with.
 
     reintern-package: when looking up tests, first reintern all tests and tags
       in this package. In general this should probably not be used, but is provided
       for convenience in transitioning from lisp-unit 1 to 2 (see: define-test package)
+
   ")
   (:method :around (&key tests tags package test-context-provider  name
                     reintern-package)
