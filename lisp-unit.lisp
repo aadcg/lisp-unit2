@@ -332,7 +332,8 @@
 (defclass test-results-db (test-results-mixin unit-test-control-mixin)
   ((name :initarg :name :initform nil)
    (tests :accessor tests :initarg :tests :initform nil)
-   (results :accessor results :initarg :results :initform nil))
+   (results :accessor results :initarg :results :initform nil)
+   (args :accessor args :initarg :args :initform nil))
   (:documentation
    "Store the results of the tests for further evaluation."))
 
@@ -416,8 +417,10 @@
            (cons res (funcall status db))
            db))
 
-(defgeneric run-tests (&key tests tags package name
+(defgeneric run-tests (&key
+                       tests tags package name
                        test-context-provider
+                       run-context-provider
                        reintern-package)
   (:documentation
    "Run the specified tests.
@@ -434,40 +437,80 @@
       in this package. In general this should probably not be used, but is provided
       for convenience in transitioning from lisp-unit 1 to 2 (see: define-test package)
 
+    test-context-provider is a list of contexts that will be applied around
+      each individual test
+
+    run-context-provider is a list of contexts that will be applied around the entire
+      suite (around signals)
   ")
-  (:method :around (&key tests tags package test-context-provider  name
+  (:method :around (&key tests tags package name
+                    test-context-provider run-context-provider
                     reintern-package)
-    (declare (ignorable tests tags package test-context-provider
+    (declare (ignorable tests tags package test-context-provider run-context-provider
                         reintern-package name))
     (%log-around (#?"Running tests${name}:${tests} tags:${tags} package:${package} context:${test-context-provider}")
       (call-next-method)))
-  (:method (&key
-            tests tags package test-context-provider reintern-package name
+  (:method (&rest args
+            &key
+            tests tags package reintern-package name
+            test-context-provider
+            run-context-provider
             &aux
             (all-tests (get-tests :tests tests
                                   :tags tags
                                   :package package
                                   :reintern-package reintern-package))
-            (results (make-instance 'test-results-db :tests all-tests :name name))
+            (results (make-instance 'test-results-db :tests all-tests :name name :args args))
             (*results* results))
     (%log #?"Running tests:${all-tests}" :level 0)
-    (with-simple-restart (abort "Cancel this all-tests-start signal")
-      (signal 'all-tests-start :results results))
-    (unwind-protect
-         (handler-bind ((missing-test
-                          (lambda (c) (%collect! (test-name c) (missing results)))))
-           (iter (for test in all-tests)
-             ;; this calls the test fn so the test source-location is
-             ;;  available in stack traces
-             (funcall
-              (name test)
-              :test-context-provider
-              (list #'record-result-context test-context-provider))))
-      (setf (end-time results) (get-universal-time)
-            (internal-end-time results) (get-internal-real-time))
-      (with-simple-restart (abort "Cancel this all-tests-complete signal")
-        (signal 'all-tests-complete :results results)))
-    results))
+    (flet ((run-tests-body ()
+             (with-simple-restart (abort "Cancel this all-tests-start signal")
+               (signal 'all-tests-start :results results))
+             (unwind-protect
+                  (handler-bind ((missing-test
+                                   (lambda (c) (%collect! (test-name c) (missing results)))))
+                    (iter (for test in all-tests)
+                      ;; this calls the test fn so the test source-location is
+                      ;;  available in stack traces
+                      (funcall
+                       (name test)
+                       :test-context-provider
+                       (list #'record-result-context test-context-provider))))
+               (setf (end-time results) (get-universal-time)
+                     (internal-end-time results) (get-internal-real-time))
+               (with-simple-restart (abort "Cancel this all-tests-complete signal")
+                 (signal 'all-tests-complete :results results)))
+             results))
+      (do-contexts #'run-tests-body run-context-provider)
+      )))
+
+(defgeneric tests-with-status (db status)
+  (:documentation "Retrieve all tests with a given status from the database")
+  (:method ((dbs list) status)
+    (iter (for db in dbs)
+      (appending (tests-with-status db status))))
+  (:method ((db test-results-db) status)
+    (iter (for s in (alexandria:ensure-list status))
+      (appending (funcall s db)))))
+
+(defgeneric  rerun-tests (test-results-db)
+  (:documentation "Rerun all tests from a given run (returns new results)")
+  (:method ((dbs list))
+    (iter (for db in dbs)
+      (collecting (rerun-tests db))))
+  (:method ((db test-results-db))
+    (apply #'run-tests (args db))))
+
+(defgeneric rerun-failures (test-results-db &key status)
+  (:documentation "reruns failed tests")
+  (:method ((dbs list) &key status)
+    (iter (for db in dbs)
+      (collecting (rerun-failures db :status status))))
+  (:method ((db test-results-db) &key (status '(failed warnings errors)))
+    (run-tests :tests (tests-with-status db status)
+               :name (name db)
+               :test-context-provider (getf (args db) :test-context-provider)
+               :run-context-provider (getf (args db) :run-context-provider))))
 
 (defun combine-contexts (&rest contexts)
   "Takes a list of nils and contexts and combines them into a single context
@@ -490,10 +533,6 @@
     (if c
         (funcall c body-fn)
         (funcall body-fn))))
-
-#| ;; TODO: make this a test
-
-|#
 
 (defun %run-test-name (u &key test-context-provider
                          &aux (test (first (get-tests :tests u))))

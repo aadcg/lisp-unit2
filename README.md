@@ -12,10 +12,11 @@ significantly, attempting to make some broad improvements to the library
 while maintaining its benefits and workflow
 
 ### Features
+
 * Written in portable Common Lisp
 * Loadable with [ASDF] or [Quicklisp]
 * Simple to define and run tests
-* Redfine functions and macros without reloading tests - tests are
+* Redefine functions and macros without reloading tests - tests are
   recompiled before each run and at definition time
 * Tests have source-location for going to definition
 * Supports testing: return values, printed output, macro expansions,
@@ -28,6 +29,7 @@ while maintaining its benefits and workflow
   as a group)
 
 #### Differences from lisp-unit version 1
+
 * Simplified test retrieval / categorization.
  * Tests are stored by their name's symbol-package (easing the
    complexity of this package vs the package argument)
@@ -49,9 +51,9 @@ while maintaining its benefits and workflow
 * Signals used throughout (including to drive current output summaries)
  * assertions passing and failing (with abort restart, to cancel
    assertions)
- * tests starting and completeing (with continue restart for resuming
+ * tests starting and completing (with continue restart for resuming
    test run after an errors)
- * test batches starting and completeing
+ * test batches starting and completing
  * Dynamic variables available in signal handlers and all tests
    *unit-test* and *results*
 * Logging used throughout (to ease debugging of lisp-unit2) - compile
@@ -68,14 +70,14 @@ while maintaining its benefits and workflow
 * lisp-unit2 is no longer loadable as a single file
 * :lisp-unit2 feature is available for conditional compilation
 * Better optimized for running both in a build-environment (jenkins
-  etc) and from the repl (previously there were many non-standard
+  etc) and from the REPL (previously there were many non-standard
   boolean flags for controlling output and debugging).
 * test bodies compiled with (debug 3) - TODO: revisit this in light of
   slow tests if that becomes an issue
 * Default ordering for tests and results is the definition order
   (instead of random or reversed)
 * assert-result -> assert-passes?
-* (define-test name &body) became (define-test name (&key-args) &body)
+* (define-test name &body) became (define-test name (&key) &body)
 
 ### How to use lisp-unit2
 
@@ -96,9 +98,14 @@ while maintaining its benefits and workflow
 3. Run all tests in your package
 
 ```
-;; with summary provides results while the tests are running
-(with-summary ()
-   (run-tests :package :my-tests))
+;; with-summary provides results while the tests are running
+;;;; using the context function
+(run-tests :package :my-tests
+           :run-context-provider #'with-summary-context)
+
+;;;; using the context macro (does the same thing as
+;;;; :run-context-provider, See Contexts below for an explanation).
+(with-summary () (run-tests :package :my-tests))
 
 ;; to print the results after the run is complete
 (print-summary (run-tests :tags 'my-tests::bar))
@@ -109,11 +116,19 @@ while maintaining its benefits and workflow
 ;; to disable the debugger:
 (let (*debug-hook*)
   (run-tests :tests 'my-tests::test-subtraction))
+
+;; to debug failed assertions with the context function
+(run-tests :tests 'my-tests::test-subtraction
+           :run-context-provider #'with-failure-debugging-context)
+
+;; or use the context macro
+(with-failure-debugging ()
+  (run-tests :tests 'my-tests::test-subtraction))
 ```
 
 See the internal test suite for more and better examples (internal-test/*)
 
-#### Define-test
+#### Defining Tests
 
 The `define-test` macro is the primary way to install a
 test. `define-test` creates a function with the same name as the test,
@@ -121,11 +136,11 @@ which can be called to execute the test.  This is nice because there
 is a direct way to call every test, but also because the test has
 implicit source destination and thus "go-to-definition" on any
 printing of the test name will take you directly to the test in
-question.  `definte-test` also creates a unit-test object and inserts
+question.  `define-test` also creates a unit-test object and inserts
 it into the test-database.
 
 The test body is compiled at the time of definition (so that any
-compile warnings or errors are immediately noticable) and also before
+compile warnings or errors are immediately noticeable) and also before
 every run of the test (so that macro expansions are never out of
 date).
 
@@ -135,8 +150,31 @@ date).
   tests could be named the same as the function they tested.
 * `context-provider` (see Contexts below): a (single or tree of) context
   fn that will be applied around the test body
-* `tags`: a list of symbols used to oranize tests into groups (not
-  heirarchical)
+* `tags`: a list of symbols used to organize tests into groups (not
+  hierarchical)
+
+#### Running Tests
+
+The primary entry point for running tests is
+`lisp-unit2:run-tests`. `run-tests` and `get-tests` both accept (&key
+tests tags package reintern-package) as discussed below in "Test
+Organization". Each test can also be run individually by calling the
+function named for the test, and by calling `lisp-unit2:run-test`
+which each return a single `test-result`.
+
+`run-tests` returns a test-results-db, and aside from the keys above 
+accepts,
+
+* `run-context-provider`: a (single, or list of) context that will be
+  applied around the entire body of running the tests
+* `test-context-provider`: a (single, or list of) context that will be
+  applied around each tests body.  This will be around any contexts
+  defined on the unit test
+* `name`: a name used for this test run. Useful for identifying what
+  defaults to all packages being tested. We attempt to make a good
+  default if nothing is provided
+
+
 
 #### Test Organization: Names, Tags, and Packages
 
@@ -178,7 +216,7 @@ about your test framework (see the internal example-tests).
 ##### Suites 
 
 While lisp-unit does not have any specific notion of a suite, it is
-believed that the tests are composible enough that explicit test
+believed that the tests are compossible enough that explicit test
 suites are not needed.
 
 One suggestion would be to have named functions that run you specific
@@ -213,7 +251,7 @@ Another suggestion would be to define tests that call other tests:
 
 All `assert-*` macros signal `assertion-pass` and `assertion-fail` by
 comparing their expected results to the actual results during
-exection.  All other values in the assert forms are assumed to be
+execution.  All other values in the assert forms are assumed to be
 extra data to aid debugging.
 
 `assert-{equality-test}` macros compare the actual to the expected
@@ -265,16 +303,16 @@ instead returning a result object.  All results objects can be printed
 (to `*test-stream*`) by calling `print-summary` on the object in
 question.  
 
-`print-summary` prints infomation about passing as well as failing
+`print-summary` prints information about passing as well as failing
 tests. `print-failure-summary` can be called to print only messages
 about failures, warnings, errors and empty tests (empty tests had no
 assertions).  Care is taken to print tests with their short, but still
 fully packaged symbol-name (so that go-to-definition) works.
 
-When running interactively `with-summary` can provide real-time output,
-printing start messages and result messages for each test.
-`with-assertion-summary` provides even more detailed output printing a
-message for each assertion passed or failed.
+When running interactively `with-summary(-context)` can provide
+real-time output, printing start messages and result messages for each
+test.  `with-assertion-summary(-context)` provides even more detailed
+output printing a message for each assertion passed or failed.
 
 Test results (from one or many runs) can be captured using
 `with-test-results`.  The arg: `collection-place` will copy all the
@@ -314,7 +352,7 @@ verbose summary of the tests as they run.
 ```
 
 Additionally, lisp-unit2 provides test-asdf-system-recursive which
-accepts a (list or single) system name, looks up all its depedencies
+accepts a (list or single) system name, looks up all its dependencies
 and calls asdf:tests-system on each listed system.  Any lisp-unit or
 lisp-unit2 test-results-dbs are collected and returned at the end.  A
 failure summary is also printed for each result db (so that after
@@ -345,7 +383,7 @@ results throughout lisp unit
 * `assertion-pass`: signaled when an assertion passes
 * `assertion-fail`: signaled when an assertion fails
 
-All signals have an abort interupt which simply cancels the signal.
+All signals have an abort interrupt which simply cancels the signal.
 This is mostly used for meta-testing (ie: testing lisp-unit2), but
 there are conceivably other uses.
 

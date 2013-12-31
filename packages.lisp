@@ -47,6 +47,8 @@
      :remove-tests
      :run-tests
      :run-test
+     :rerun-tests
+     :rerun-failures
      :reset-test-database
      :with-test-signals-muffled
      :unit-test :*unit-test*
@@ -125,5 +127,4 @@
      :numerical-equal :assert-numerical-equal
      ;; rational
      :assert-rational-equal :rational-equal
-     ))
-  )
+     )))

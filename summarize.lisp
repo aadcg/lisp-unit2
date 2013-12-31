@@ -69,23 +69,26 @@
 (defun with-summary-context (body-fn
                              &key name
                              &aux (*print-pretty* t) rtn )
-  (flet ((ensure-results-name (c)
+  (flet ((ensure-names (c)
+           "Syncs the names between this env and our results object"
            (when (and name (null (name (results c))))
-             (setf (name (results c)) name))))
+             (setf (name (results c)) name))
+           (when (and (null name) (name (results c)))
+             (setf name (name (results c))))))
     (pprint-test-block ()
       (handler-bind
           ((all-tests-start
-             (lambda (c )
-               (ensure-results-name c)
+             (lambda (c)
+               (ensure-names c)
                (if name
                    (format *test-stream* "~%~0I------- STARTING Testing: ~A ~%" name)
                    (format *test-stream* "~%~0I"))))
            (test-start
              (lambda (c) (format *test-stream* "~@:_Starting: ~A~@:_"
-                            (short-full-name c))))
+                              (short-full-name c))))
            (all-tests-complete
              (lambda (c)
-               (ensure-results-name c)
+               (ensure-names c)
                (%print-result-summary (results c))
                (if name
                    (format *test-stream* "~%~0I-------   ENDING Testing: ~A ~%" name)
