@@ -174,7 +174,8 @@ accepts,
   defaults to all packages being tested. We attempt to make a good
   default if nothing is provided
 
-
+Once you have a test-result-db (or list there of) you can call
+`rerun-tests` or `rerun-failures` to rerun and produce new results.
 
 #### Test Organization: Names, Tags, and Packages
 
@@ -216,7 +217,7 @@ about your test framework (see the internal example-tests).
 ##### Suites 
 
 While lisp-unit does not have any specific notion of a suite, it is
-believed that the tests are compossible enough that explicit test
+believed that the tests are composable enough that explicit test
 suites are not needed.
 
 One suggestion would be to have named functions that run you specific
