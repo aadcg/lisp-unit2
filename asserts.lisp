@@ -54,9 +54,9 @@ vice versa."
     :test #'typep
     :full-form ',whole))
 
-(defun expand-signaled-handler (form condition)
-  (alexandria:with-unique-names (signaled)
-    `(let (,signaled)
+(defun expand-signaled-handler (whole condition form extras should-be-signaled?)
+  (alexandria:with-unique-names (signaled rtn)
+    `(let (,signaled ,rtn)
       (block ,signaled
         (handler-bind
             ((condition #'(lambda (c)
@@ -67,22 +67,17 @@ vice versa."
                               (when (typep c 'error)
                                 (return-from ,signaled))
                               ))))
-          ,form))
-      ,signaled)))
+          (setf ,rtn (multiple-value-list ,form))))
+      (expand-assert 'signal-result
+       ,form ,signaled ,should-be-signaled? ,extras
+       :full-form ',whole)
+      (apply #'values ,rtn))))
 
 (defmacro assert-signal (&whole whole condition form &rest extras)
-  (let ((body (expand-signaled-handler form condition)))
-    `(expand-assert
-      'signal-result
-      ,form ,body ,condition ,extras
-      :full-form ',whole)))
+  (expand-signaled-handler whole condition form extras t))
 
 (defmacro assert-no-signal (&whole whole condition form &rest extras)
-  (let ((body (expand-signaled-handler form condition)))
-    `(expand-assert
-      'signal-result
-      ,form ,body ,nil ,extras
-      :full-form ',whole)))
+  (expand-signaled-handler whole condition form extras nil))
 
 (defmacro assert-warning (condition form &rest extras)
   `(assert-signal ,condition ,form ,@extras))
@@ -259,8 +254,8 @@ vice versa."
                   :failure (record-failure
                             type full-form actual expected
                             (when extras (funcall extras)) test))))
-    ;; Return the result
-    result))
+    ;; Return the actual-values
+    (apply #'values actual)))
 
 (defun with-failure-debugging-context (body-fn)
   "A context that invokes the debugger on failed assertions"

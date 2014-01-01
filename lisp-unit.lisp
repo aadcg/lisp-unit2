@@ -33,8 +33,9 @@
 
 (unless *test-db* (reset-test-database))
 
-(defmethod tests ((db test-database))
-  (head (%tests db)))
+(defgeneric tests (db)
+  (:method ((db test-database))
+    (head (%tests db))))
 
 ;;; Global unit test database
 (defclass unit-test-control-mixin ()
@@ -63,17 +64,18 @@
   (print-unreadable-object (o s :type t :identity t)
     (princ (ignore-errors (short-full-name o)) s)))
 
-(defmethod install-test ((u unit-test)
-                         &aux (package (symbol-package (name u)))
-                         (db *test-db*))
-  (%log #?"Installing test ${u}")
-  (uninstall-test u) ;; prevents duplication, does a lot of work :/
-  (%compile u)
-  (%collect! u (%tests db))
-  (setf (gethash (name u) (name-index db)) u)
-  (%collect! u (gethash package (package-index db)))
-  (iter (for tag in (alexandria:ensure-list (tags u)))
-    (%collect! u (gethash tag (tag-index db)))))
+(defgeneric install-test (unit-test)
+  (:method ((u unit-test)
+            &aux (package (symbol-package (name u)))
+            (db *test-db*))
+    (%log #?"Installing test ${u}")
+    (uninstall-test u)          ;; prevents duplication, does a lot of work :/
+    (%compile u)
+    (%collect! u (%tests db))
+    (setf (gethash (name u) (name-index db)) u)
+    (%collect! u (gethash package (package-index db)))
+    (iter (for tag in (alexandria:ensure-list (tags u)))
+      (%collect! u (gethash tag (tag-index db))))))
 
 (defun %uninstall-name (n &optional tags
                         &aux (db *test-db*)
@@ -170,15 +172,17 @@
      (list u 'test-thunk)
      (symbol-package u))))
 
-(defmethod test-thunk ((u unit-test))
-  (%compile u)
-  (symbol-function (test-thunk-name u)))
+(defgeneric test-thunk (unit-test)
+  (:method ((u unit-test))
+    (%compile u)
+    (symbol-function (test-thunk-name u))))
 
-(defmethod %compile ((u unit-test))
-  (%log-around (#?"Compiling Test: ${ (name u) }" :start-level 0)
-    (compile (test-thunk-name u)
-             `(lambda ()
-               (declare (optimize (debug 3))) ,@(code u)))))
+(defgeneric %compile (unit-test)
+  (:method  ((u unit-test))
+    (%log-around (#?"Compiling Test: ${ (name u) }" :start-level 0)
+      (compile (test-thunk-name u)
+               `(lambda ()
+                 (declare (optimize (debug 3))) ,@(code u))))))
 
 
 (defun test-name-error-report (test-name-error stream)
@@ -308,16 +312,15 @@
           (for s in +statuses+)
           (collect `(,s :accessor ,s :initform nil)))))
 
+(defun %has? (status thing &aux (n (len (funcall status thing))))
+  (when (< 0 n) n))
+
 (defun status ( u )
   (or
    (iter (for s in +statuses+)
      (when (%has? s u)
        (return s)))
    'empty))
-
-(defmethod %has? (status thing
-                  &aux (n (len (funcall status thing))))
-  (when (< 0 n) n))
 
 (defgeneric run-time (it)
   (:method ((o test-results-mixin))
@@ -347,9 +350,10 @@
 (defmethod (setf name) (new (o test-results-db))
   (setf (slot-value o 'name) new))
 
-(defmethod package-names ((o test-results-db))
-  (iter (for test in-sequence (tests o))
-    (adjoining (package-name (symbol-package (name test))))))
+(defgeneric package-names (db)
+  (:method ((o test-results-db))
+    (iter (for test in-sequence (tests o))
+      (adjoining (package-name (symbol-package (name test)))))))
 
 (defmethod initialize-instance :after
     ((ctl test-results-db) &key &allow-other-keys)
@@ -410,12 +414,13 @@
   (unwind-protect (funcall body)
     (record-result *result* *results*)))
 
-(defmethod record-result ((res test-result) (db test-results-db)
-                          &aux (status (status res)))
-  (vector-push-extend res (results db))
-  (funcall (fdefinition `(setf ,status))
-           (cons res (funcall status db))
-           db))
+(defgeneric record-result (result db)
+  (:method ((res test-result) (db test-results-db)
+            &aux (status (status res)))
+    (vector-push-extend res (results db))
+    (funcall (fdefinition `(setf ,status))
+             (cons res (funcall status db))
+             db)))
 
 (defgeneric run-tests (&key
                        tests tags package name

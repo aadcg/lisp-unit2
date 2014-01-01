@@ -41,7 +41,10 @@
   (asdf:load-system :lisp-unit2-test)
   (let ((*package* (find-package :lisp-unit2-tests)))
     (eval (read-from-string
-           "(with-summary (:name :lisp-unit) (run-tests))"))))
+           "(lisp-unit2:run-tests
+             :name :lisp-unit
+             :run-contexts #'lisp-unit2:with-summary-context
+             :package :lisp-unit2-tests)"))))
 
 
 #|
