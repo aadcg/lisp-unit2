@@ -181,7 +181,7 @@
     (lisp-unit2:run-tests :tags tags)))
 
 (define-test test-with-test-results (:tags '(meta-tests)
-                                     :context-provider #'meta-test-context)
+                                     :contexts #'meta-test-context)
   (let ( results )
     (lisp-unit2:with-test-signals-muffled ()
       (lisp-unit2:with-test-results (:collection-place results)
@@ -192,7 +192,7 @@
     (assert-typep 'lisp-unit2::test-results-db (first results))))
 
 (define-test test-warning-assertions (:tags '(meta-tests)
-                                      :context-provider #'meta-test-context)
+                                      :contexts #'meta-test-context)
   (let ((res (%run-meta-tags 'warnings)))
     (assert-eql 2 (len (lisp-unit2::tests res)))
     (assert-eql 5 (len (lisp-unit2::passed-assertions res)))
@@ -200,7 +200,7 @@
     (assert-eql 2 (len (lisp-unit2::all-warnings res)))))
 
 (define-test test-failing-assertions (:tags '(meta-tests)
-                                      :context-provider #'meta-test-context)
+                                      :contexts #'meta-test-context)
   (let ((res (%run-meta-tags 'failed)))
     (assert-eql 1 (len (lisp-unit2::tests res)))
     (assert-eql 3 (len (lisp-unit2::failed-assertions res)))
@@ -208,13 +208,13 @@
     (assert-eql 0 (len (lisp-unit2::errors res)))))
 
 (define-test test-erroring-unit-tests (:tags '(meta-tests)
-                                       :context-provider #'meta-test-context)
+                                       :contexts #'meta-test-context)
   (let ((res (%run-meta-tags 'errors)))
     (assert-eql 1 (len (lisp-unit2::tests res)))
     (assert-eql 1 (len (lisp-unit2::errors res)))))
 
 (define-test meta-tests (:tags '(meta-tests)
-                         :context-provider #'meta-test-context)
+                         :contexts #'meta-test-context)
   (let ((res (%run-meta-tags nil)))
     (assert-eql 12 (len (lisp-unit2::tests res)))
     (assert-eql 6 (len (lisp-unit2::failed-assertions res)))

@@ -101,10 +101,10 @@ while maintaining its benefits and workflow
 ;; with-summary provides results while the tests are running
 ;;;; using the context function
 (run-tests :package :my-tests
-           :run-context-provider #'with-summary-context)
+           :run-contexts #'with-summary-context)
 
 ;;;; using the context macro (does the same thing as
-;;;; :run-context-provider, See Contexts below for an explanation).
+;;;; :run-contexts, See Contexts below for an explanation).
 (with-summary () (run-tests :package :my-tests))
 
 ;; to print the results after the run is complete
@@ -119,7 +119,7 @@ while maintaining its benefits and workflow
 
 ;; to debug failed assertions with the context function
 (run-tests :tests 'my-tests::test-subtraction
-           :run-context-provider #'with-failure-debugging-context)
+           :run-contexts #'with-failure-debugging-context)
 
 ;; or use the context macro
 (with-failure-debugging ()
@@ -148,7 +148,7 @@ date).
   reinterned into that package before definition.  This is mostly for
   porting lisp-unit systems where test-names were not functions and so
   tests could be named the same as the function they tested.
-* `context-provider` (see Contexts below): a (single or tree of) context
+* `contexts` (see Contexts below): a (single or tree of) context
   fn that will be applied around the test body
 * `tags`: a list of symbols used to organize tests into groups (not
   hierarchical)
@@ -165,9 +165,9 @@ which each return a single `test-result`.
 `run-tests` returns a test-results-db, and aside from the keys above 
 accepts,
 
-* `run-context-provider`: a (single, or list of) context that will be
+* `run-contexts`: a (single, or list of) context that will be
   applied around the entire body of running the tests
-* `test-context-provider`: a (single, or list of) context that will be
+* `test-contexts`: a (single, or list of) context that will be
   applied around each tests body.  This will be around any contexts
   defined on the unit test
 * `name`: a name used for this test run. Useful for identifying what
@@ -347,8 +347,11 @@ verbose summary of the tests as they run.
   (asdf:oos 'asdf:load-op :symbol-munger-test)
   (let ((*package* (find-package :symbol-munger-test)))
     (eval (read-from-string "
-            (lisp-unit2:with-summary (:name :symbol-munger)
-             (lisp-unit2:run-tests :package :symbol-munger-test))
+            (lisp-unit2:with-summary ()
+             (lisp-unit2:run-tests
+              :package :symbol-munger-test
+              :name :symbol-munger
+              :run-context))
       "))))
 ```
 
@@ -432,7 +435,7 @@ Example test-with-contexts defintion:
 (defmacro db-render-test (name (&rest args) &body body)
   `(lisp-unit2:define-test ,name
     (:tags ',args
-     :context-provider
+     :contexts
      (list #'test-context #'dom-context #'database-context )
      :package :test-objects)
     ,@body))

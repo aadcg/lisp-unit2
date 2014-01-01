@@ -38,8 +38,8 @@
 
 ;;; Global unit test database
 (defclass unit-test-control-mixin ()
-  ((context-provider
-    :accessor context-provider :initarg :context-provider :initform nil
+  ((contexts
+    :accessor contexts :initarg :contexts :initform nil
     :documentation "A function that accepts a test thunk and executes
      with a given context (eg: database-connects, html-collectors,
      http-context etc)")
@@ -209,13 +209,13 @@
       n package))
     (list (mapcar #'%in-package n))))
 
-(defmacro define-test (name (&key tags context-provider package) &body body)
+(defmacro define-test (name (&key tags contexts package) &body body)
   "Defines a new test object, test functions and installs the test
    function in the test database
 
    name: the name of the test and the test-function
 
-   context-provider: a (lambda (fn)...) (or list of) that runs the fn in a dynamic
+   contexts: a (lambda (fn)...) (or list of) that runs the fn in a dynamic
       context
 
    tags: symbols that can be used to group tests
@@ -241,12 +241,12 @@
                  `(%in-package ,tags ,package)
                  tags)
       :code '(,@body)
-      :context-provider (combine-contexts ,context-provider)
+      :contexts (combine-contexts ,contexts)
       ))
-    (defun ,name (&key test-context-provider)
+    (defun ,name (&key test-contexts)
       (declare (optimize (debug 3)))
       "Runs this test, this fn is useful to help going to test definitions"
-      (%run-test-name ',name :test-context-provider test-context-provider))
+      (%run-test-name ',name :test-contexts test-contexts))
     #',name))
 
 ;;; Manage tests
@@ -419,8 +419,8 @@
 
 (defgeneric run-tests (&key
                        tests tags package name
-                       test-context-provider
-                       run-context-provider
+                       test-contexts
+                       run-contexts
                        reintern-package)
   (:documentation
    "Run the specified tests.
@@ -437,24 +437,24 @@
       in this package. In general this should probably not be used, but is provided
       for convenience in transitioning from lisp-unit 1 to 2 (see: define-test package)
 
-    test-context-provider is a list of contexts that will be applied around
+    test-contexts is a list of contexts that will be applied around
       each individual test
 
-    run-context-provider is a list of contexts that will be applied around the entire
+    run-contexts is a list of contexts that will be applied around the entire
       suite (around signals)
   ")
   (:method :around (&key tests tags package name
-                    test-context-provider run-context-provider
+                    test-contexts run-contexts
                     reintern-package)
-    (declare (ignorable tests tags package test-context-provider run-context-provider
+    (declare (ignorable tests tags package test-contexts run-contexts
                         reintern-package name))
-    (%log-around (#?"Running tests${name}:${tests} tags:${tags} package:${package} context:${test-context-provider}")
+    (%log-around (#?"Running tests${name}:${tests} tags:${tags} package:${package} context:${test-contexts},${run-contexts}")
       (call-next-method)))
   (:method (&rest args
             &key
             tests tags package reintern-package name
-            test-context-provider
-            run-context-provider
+            test-contexts
+            run-contexts
             &aux
             (all-tests (get-tests :tests tests
                                   :tags tags
@@ -474,14 +474,14 @@
                       ;;  available in stack traces
                       (funcall
                        (name test)
-                       :test-context-provider
-                       (list #'record-result-context test-context-provider))))
+                       :test-contexts
+                       (list #'record-result-context test-contexts))))
                (setf (end-time results) (get-universal-time)
                      (internal-end-time results) (get-internal-real-time))
                (with-simple-restart (abort "Cancel this all-tests-complete signal")
                  (signal 'all-tests-complete :results results)))
              results))
-      (do-contexts #'run-tests-body run-context-provider)
+      (do-contexts #'run-tests-body run-contexts)
       )))
 
 (defgeneric tests-with-status (db status)
@@ -509,8 +509,8 @@
   (:method ((db test-results-db) &key (status '(failed warnings errors)))
     (run-tests :tests (tests-with-status db status)
                :name (name db)
-               :test-context-provider (getf (args db) :test-context-provider)
-               :run-context-provider (getf (args db) :run-context-provider))))
+               :test-contexts (getf (args db) :test-contexts)
+               :run-contexts (getf (args db) :run-contexts))))
 
 (defun combine-contexts (&rest contexts)
   "Takes a list of nils and contexts and combines them into a single context
@@ -534,21 +534,21 @@
         (funcall c body-fn)
         (funcall body-fn))))
 
-(defun %run-test-name (u &key test-context-provider
+(defun %run-test-name (u &key test-contexts
                          &aux (test (first (get-tests :tests u))))
   (if test
-      (%run-test test :test-context-provider test-context-provider)
+      (%run-test test :test-contexts test-contexts)
       (warn 'missing-test :test-name u)))
 
 (defun %run-test
-    (u &key test-context-provider
+    (u &key test-contexts
        &aux
        (result (setf (most-recent-result u)
                      (make-instance 'test-result :unit-test u)))
        (*unit-test* u)
        (*result* result))
   (check-type u unit-test)
-  ;; todo: clear context-provider, data? so that it must be set via signal?
+  ;; todo: clear contexts, data? so that it must be set via signal?
   ;; possibly in an unwind-protect region
   (with-simple-restart (abort "Cancel this test-start signal")
     (signal 'test-start :unit-test u))
@@ -565,8 +565,8 @@
            ;; run the test code
            (setf (return-value result)
                  (do-contexts (test-thunk u)
-                   (context-provider u)
-                   test-context-provider)))
+                   (contexts u)
+                   test-contexts)))
       (setf (end-time result) (get-universal-time)
             (internal-end-time result) (get-internal-real-time))
       (with-simple-restart (abort "Cancel this test-complete signal")
@@ -575,15 +575,15 @@
 
 ;; This is written this way so that erroring test fns show up in the
 ;; stack and then can easily goto-definition
-(defgeneric run-test (test &key test-context-provider)
-  (:method ((n symbol) &key test-context-provider )
-    (funcall n :test-context-provider test-context-provider))
-  (:method :around ((u symbol) &key test-context-provider)
-    (declare (ignorable u test-context-provider))
-    (%log-around (#?"Running Test:${ u } context:${test-context-provider}")
+(defgeneric run-test (test &key test-contexts)
+  (:method ((n symbol) &key test-contexts )
+    (funcall n :test-contexts test-contexts))
+  (:method :around ((u symbol) &key test-contexts)
+    (declare (ignorable u test-contexts))
+    (%log-around (#?"Running Test:${ u } context:${test-contexts}")
       (call-next-method)))
-  (:method ((u unit-test) &key test-context-provider)
-    (run-test (name u) :test-context-provider test-context-provider)))
+  (:method ((u unit-test) &key test-contexts)
+    (run-test (name u) :test-contexts test-contexts)))
 
 (defun test-signals-muffled-context (body-fn)
   (handler-bind ((lisp-unit2::assertion-pass #'abort)
