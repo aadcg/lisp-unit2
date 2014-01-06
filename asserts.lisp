@@ -23,6 +23,10 @@ vice versa."
   (and (apply #'subsetp list1 list2 initargs :test test :key key)
        (apply #'subsetp list2 list1 initargs :test test :key key)))
 
+(defun logically-equal (x y)
+  (or (and x y)
+      (and (null x) (null y))))
+
 ;;; Assert macros
 
 (defmacro assert-eq (&whole whole expected form &rest extras)
@@ -47,7 +51,7 @@ vice versa."
     :full-form ',whole))
 
 (defmacro assert-typep (&whole whole expected-type form &rest extras)
-  "Assert whether expected and form are EQUALP."
+  "Assert whether expected and form are TYPEP."
   `(expand-assert
     'equal-result ,form ,form
     ,expected-type ,extras
@@ -61,9 +65,9 @@ vice versa."
         (handler-bind
             ((condition #'(lambda (c)
                             (when (typep c ,condition)
+                              (setf ,signaled c)
                               (when (typep c 'warning)
                                 (muffle-warning c))
-                              (setf ,signaled c)
                               (when (typep c 'error)
                                 (return-from ,signaled))
                               ))))
@@ -224,10 +228,8 @@ vice versa."
         ;; to use many more functions as tests (eg: typep)
         (every test actual expected)))
       (signal-result
-       (if expected
-           (not (null actual)) ;; we got a condition of the type
-           (null actual) ;; no condition expected
-           ))
+       ;; These are lists of booleans
+       (logically-equal (first expected) (first actual)))
       (error-result
        (or
         ;; todo: whats with eql?

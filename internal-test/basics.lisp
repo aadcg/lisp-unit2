@@ -51,3 +51,45 @@
          '((1 () 2) (a b) ()))
     (nfe? '((1 () 2) (a b) ())
           '((1 () 2) (a b)))))
+
+(define-test test-error-assertions (:tags '(asserts errors))
+  (handler-bind ((lisp-unit2:assertion-pass
+                   (lambda (c)
+                     (assert-false T "Error was not thrown, shouldnt have passed assertion")
+                     (abort c)))
+                 (lisp-unit2:assertion-fail
+                   (lambda (c)
+                     (assert-true "Error was not thrown and we correctly failed")
+                     (abort c))))
+    (assert-error 'error 'foo))
+  (handler-bind ((lisp-unit2:assertion-pass
+                   (lambda (c)
+                     (assert-true "Error was thrown and we correctly caught it")
+                     (abort c)))
+                 (lisp-unit2:assertion-fail
+                   (lambda (c)
+                     (assert-false T "Error was thrown, should have passed assertion")
+                     (abort c))))
+    (assert-error 'error (error "foo"))))
+
+(define-test test-no-error-assertions (:tags '(asserts errors))
+  (handler-bind
+      ((lisp-unit2:assertion-pass
+         (lambda (c)
+           (assert-true "Error was not thrown and we correctly didnt see an error")
+           (abort c)))
+       (lisp-unit2:assertion-fail
+         (lambda (c)
+           (assert-false T "Error was not thrown, should have passed no-error assertion")
+           (abort c))))
+    (assert-no-error 'error 'foo))
+  (handler-bind
+      ((lisp-unit2:assertion-pass
+         (lambda (c)
+           (assert-false T "Error was thrown, shouldnt have passed no-error assertion")
+           (abort c)))
+       (lisp-unit2:assertion-fail
+         (lambda (c)
+           (assert-true "Error was not thrown and we correctly didnt see an error")
+           (abort c))))
+    (assert-no-error 'error (error "foo"))))

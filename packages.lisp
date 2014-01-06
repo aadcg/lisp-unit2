@@ -13,7 +13,7 @@
     (:export
      :assert-eq :assert-eql :assert-equal :assert-equalp
      :assert-equality :assert-prints :assert-expands :assert-true
-     :assert-false :assert-error
+     :assert-false :assert-error :assert-no-error
      :assert-warning :assert-no-warning
      :assert-signal :assert-no-signal
      :assert-typep
@@ -92,7 +92,7 @@
     (:import-from :lisp-unit2
      :assert-eq :assert-eql :assert-equal :assert-equalp
      :assert-equality :assert-prints :assert-expands :assert-true
-     :assert-false :assert-error
+     :assert-false :assert-error :assert-no-error
      :assert-warning :assert-no-warning
      :assert-signal :assert-no-signal
      :assert-typep
@@ -111,7 +111,7 @@
     (:export
      :assert-eq :assert-eql :assert-equal :assert-equalp
      :assert-equality :assert-prints :assert-expands :assert-true
-     :assert-false :assert-error
+     :assert-false :assert-error :assert-no-error
      :assert-warning :assert-no-warning
      :assert-signal :assert-no-signal
      :assert-typep

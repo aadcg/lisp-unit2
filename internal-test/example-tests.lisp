@@ -156,10 +156,14 @@
          (progn (warn "foo") (values))))
       (assert-true warning?))
 
-    (handler-bind ((warning #'muffle-warning))
-      (assert-no-warning
-       'sub-test-warning
-       (progn (warn 'super-test-warning) (values)))))
+    (let (warning?)
+      (handler-bind ((warning (lambda (c)
+                                (setf warning? c)
+                                (muffle-warning c))))
+        (assert-no-warning
+         'sub-test-warning
+         (progn (warn 'super-test-warning) (values)))
+        (assert-true warning?))))
   ) ;; finish example-database-construction
 
 (defun meta-test-context (body-fn)
@@ -174,11 +178,13 @@
   `(meta-test-context
     (lambda () ,@body)))
 
-(defun %run-meta-tags (tags &aux (lisp-unit2::*test-db* *example-db*)
-                            (*package* (find-package :lisp-unit2-tests)))
+(defun %run-meta-tags (tags
+                       &key run-contexts
+                       &aux (lisp-unit2::*test-db* *example-db*)
+                       (*package* (find-package :lisp-unit2-tests)))
   ;; runs the tags from the example tests with all test signals aborted
   (lisp-unit2:with-test-signals-muffled ()
-    (lisp-unit2:run-tests :tags tags)))
+    (lisp-unit2:run-tests :tags tags :run-contexts run-contexts)))
 
 (define-test test-with-test-results (:tags '(meta-tests)
                                      :contexts #'meta-test-context)
@@ -195,7 +201,7 @@
                                       :contexts #'meta-test-context)
   (let ((res (%run-meta-tags 'warnings)))
     (assert-eql 2 (len (lisp-unit2::tests res)))
-    (assert-eql 5 (len (lisp-unit2::passed-assertions res)))
+    (assert-eql 6 (len (lisp-unit2::passed-assertions res)))
     (assert-eql 1 (len (lisp-unit2::warnings res)))
     (assert-eql 2 (len (lisp-unit2::all-warnings res)))))
 
@@ -218,7 +224,7 @@
   (let ((res (%run-meta-tags nil)))
     (assert-eql 12 (len (lisp-unit2::tests res)))
     (assert-eql 6 (len (lisp-unit2::failed-assertions res)))
-    (assert-eql 33 (len (lisp-unit2::passed-assertions res)))
+    (assert-eql 34 (len (lisp-unit2::passed-assertions res)))
     (assert-eql 1 (len (lisp-unit2::errors res)))
     (assert-eql 1 (len (lisp-unit2::warnings res)))))
 
