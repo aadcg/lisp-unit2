@@ -268,21 +268,3 @@ vice versa."
   "A context macro that invokes the debugger on failed assertions"
   `(with-assertion-debugging-context (lambda () ,@body)))
 
-(defun short-full-name (s)
-  (etypecase s
-    (null nil)
-    ((or assertion-pass assertion-fail test-result test-start)
-     (short-full-name (unit-test s)))
-    (test-complete
-     (short-full-name (unit-test s)))
-    (test-results-db
-     (short-full-name (name s)))
-    (unit-test (short-full-name (name s)))
-    (symbol
-     (let* ((package (symbol-package s))
-            (nick (first (package-nicknames package)))
-            (p (or nick (package-name package) "#")))
-       (if (eql package (load-time-value (find-package :keyword)))
-           #?":${s}"
-           #?"${p}::${s}")))
-    (string s)))

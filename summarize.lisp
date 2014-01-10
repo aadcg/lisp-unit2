@@ -75,16 +75,20 @@
              (setf (name (results c)) name))
            (when (and (null name) (name (results c)))
              (setf name (name (results c))))))
+    ;; this resets the actual indenting which, for whatever reason gets
+    ;; banged by compiler messages without this
+    (pprint-test-block () (format *test-stream* "~%"))
     (pprint-test-block ()
       (handler-bind
           ((all-tests-start
              (lambda (c)
                (ensure-names c)
                (if name
-                   (format *test-stream* "~%~0I------- STARTING Testing: ~A ~%" name)
+                   (format *test-stream* "~0I------- STARTING Testing: ~A ~%" name)
                    (format *test-stream* "~%~0I"))))
            (test-start
-             (lambda (c) (format *test-stream* "~@:_Starting: ~A~@:_"
+             (lambda (c)
+               (format *test-stream* "~@:_Starting: ~A~@:_"
                               (short-full-name c))))
            (all-tests-complete
              (lambda (c)
