@@ -558,11 +558,14 @@
         (funcall c body-fn)
         (funcall body-fn))))
 
-(defun %run-test-name (u &key test-contexts
-                         &aux (test (first (get-tests :tests u))))
-  (if test
-      (%run-test test :test-contexts test-contexts)
-      (warn 'missing-test :test-name u)))
+(defun %run-test-name (u &key test-contexts)
+  (iter
+    (with-simple-restart (retry "Retry running ~A" u)
+      (let ((test (first (get-tests :tests u))))
+        (if test
+            (%run-test test :test-contexts test-contexts)
+            (warn 'missing-test :test-name u)))
+      (finish))))
 
 (defun %run-test
     (u &key test-contexts
@@ -571,35 +574,33 @@
                      (make-instance 'test-result :unit-test u)))
        (*unit-test* u)
        (*result* result))
+  "This should only be called from run-test-name, which everyone else should call
+   This ensures our test name is easily in the inspector and the redefining a test
+   then retrying calls the new test body"
   (check-type u unit-test)
   ;; todo: clear contexts, data? so that it must be set via signal?
   ;; possibly in an unwind-protect region
-  (flet ((%run-test-body ()
-           (with-simple-restart (abort "Cancel this test-start signal")
-             (signal 'test-start :unit-test u))
-           (with-simple-restart (continue "Continue running the next test")
-             (unwind-protect
-                  (handler-bind
-                      ((assertion-pass (lambda (c) (%collect! (assertion c) (passed result))))
-                       (assertion-fail (lambda (c) (%collect! (failure c) (failed result))))
-                       (error (lambda (c)
-                                (%collect! c (errors result))
-                                (unless *debugger-hook*
-                                  (return-from %run-test result))))
-                       (warning (lambda (c) (%collect! c (warnings result)))))
-                    ;; run the test code
-                    (setf (return-value result)
-                          (do-contexts (test-thunk u)
-                            (contexts u)
-                            test-contexts)))
-               (setf (end-time result) (get-universal-time)
-                     (internal-end-time result) (get-internal-real-time))
-               (with-simple-restart (abort "Cancel this test-complete signal")
-                 (signal 'test-complete :result result))))))
-    (iter
-      (with-simple-restart (retry "Retry running this test")
-        (%run-test-body)
-        (finish))))
+  (with-simple-restart (abort "Cancel this test-start signal")
+    (signal 'test-start :unit-test u))
+  (with-simple-restart (continue "Continue running the next test")
+    (unwind-protect
+         (handler-bind
+             ((assertion-pass (lambda (c) (%collect! (assertion c) (passed result))))
+              (assertion-fail (lambda (c) (%collect! (failure c) (failed result))))
+              (error (lambda (c)
+                       (%collect! c (errors result))
+                       (unless *debugger-hook*
+                         (return-from %run-test result))))
+              (warning (lambda (c) (%collect! c (warnings result)))))
+           ;; run the test code
+           (setf (return-value result)
+                 (do-contexts (test-thunk u)
+                   (contexts u)
+                   test-contexts)))
+      (setf (end-time result) (get-universal-time)
+            (internal-end-time result) (get-internal-real-time))
+      (with-simple-restart (abort "Cancel this test-complete signal")
+        (signal 'test-complete :result result))))
   result)
 
 ;; This is written this way so that erroring test fns show up in the

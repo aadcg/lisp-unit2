@@ -108,8 +108,6 @@
 (defmacro with-assertion-summary (() &body body)
   `(with-assertion-summary-context (lambda () ,@body)))
 
-
-
 (defun %out (s &rest args
                &aux (*print-pretty* t))
   (format *test-stream* "~?~@:_" (or s "") args))
