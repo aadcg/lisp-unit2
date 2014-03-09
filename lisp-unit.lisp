@@ -105,6 +105,15 @@
     (%log #?"Uninstalling test ${u}")
     (%uninstall-name n t)))
 
+(defun %to-test (id)
+  "Coerces its argument to a unit-test argument"
+  (or (etypecase id
+        (null nil)
+        (unit-test id)
+        (test-result (unit-test id))
+        (symbol (gethash id (name-index *test-db*))))
+      (warn 'missing-test :test-name id)))
+
 (defun get-tests (&key tests tags package reintern-package
                   &aux (db *test-db*))
   "finds tests by names, tags, and package
@@ -128,13 +137,9 @@
       (iter (for tag in (alexandria:ensure-list tags))
         (appending (head (gethash tag (tag-index db)))))
       (iter (for name in (alexandria:ensure-list tests))
-        (for test = (etypecase name
-                      (null nil)
-                      (unit-test name)
-                      (symbol (gethash name (name-index *test-db*)))))
-        (if test
-            (collect test)
-            (warn 'missing-test :test-name test))))
+        (for test = (%to-test name))
+        (when test
+          (collect test))))
      :key #'name)))
 
 
