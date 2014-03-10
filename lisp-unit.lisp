@@ -65,6 +65,8 @@
     (princ (ignore-errors (short-full-name o)) s)))
 
 (defgeneric install-test (unit-test)
+  (:documentation
+   "Installs a unit test, generally only called from define-test")
   (:method ((u unit-test)
             &aux (package (symbol-package (name u)))
             (db *test-db*))
@@ -99,6 +101,8 @@
   (ignore-errors (fmakunbound (test-thunk-name n))))
 
 (defgeneric uninstall-test (test)
+  (:documentation
+   "Uninstalls a previously defined unit test")
   (:method ((n symbol))
     (%uninstall-name n t))
   (:method ((u unit-test) &aux (n (name u)))
@@ -106,11 +110,14 @@
     (%uninstall-name n t)))
 
 (defun %to-test (id)
-  "Coerces its argument to a unit-test argument"
+  "Coerces its argument to a unit-test argument
+
+   always look up by name so that rerunning a suite after
+   uninstalling a test behaves appropriately"
   (or (etypecase id
         (null nil)
-        (unit-test id)
-        (test-result (unit-test id))
+        (unit-test (%to-test (name id)))
+        (test-result (%to-test (name (unit-test id))))
         (symbol (gethash id (name-index *test-db*))))
       (warn 'missing-test :test-name id)))
 
@@ -256,6 +263,10 @@
       "Runs this test, this fn is useful to help going to test definitions"
       (%run-test-name ',name :test-contexts test-contexts))
     #',name))
+
+(defmacro undefine-test (name (&key tags contexts package) &body body)
+  (declare (ignore tags contexts package body))
+  `(uninstall-test ',name))
 
 ;;; Manage tests
 

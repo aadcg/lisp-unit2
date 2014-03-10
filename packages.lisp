@@ -40,6 +40,8 @@
      ;; statuses
      :errors :failed :warnings :passed :missing :empty
      :define-test :*test-db*
+     :undefine-test
+     :uninstall-test
      :list-tests
      :get-tests
      :test-code

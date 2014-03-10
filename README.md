@@ -153,6 +153,18 @@ date).
 * `tags`: a list of symbols used to organize tests into groups (not
   hierarchical)
 
+#### Undefining Tests
+
+Because lisp-unit2 keeps a database of tests and functions, removing a
+tests is not as simple as deleteing the test from from your
+file. Instead a function `uninstall-test` and a macro `undefine-test`
+allow you to remove all the runtime components of a test from
+lisp-unit2.  `Uninstall-test` accepts the test's symbolic name.
+`Undefine-test` is a macro whose form mimics define-test, so that you
+can simply add the two characters and compile the form to remove the
+test.  This also gives you the ability to easily leave tests in your
+test file that are inactive currently.
+
 #### Running Tests
 
 The primary entry point for running tests is
