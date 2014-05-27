@@ -215,13 +215,19 @@
       name
       (error 'test-name-error :datum name)))
 
-(defun %in-package (n &optional (package *package*))
+(defun %dequote (it)
+  (if (and (listp it) (eql 'quote (first it)))
+      (cadr it)
+      it))
+
+(defun %in-package (n &optional (package *package*)
+                    &aux (*package* (find-package package)))
   (typecase n
     (null n)
     (keyword n)
     ((or string symbol)
      (symbol-munger:english->lisp-symbol
-      n package))
+      n *package*))
     (list (mapcar #'%in-package n))))
 
 (defmacro define-test (name (&key tags contexts package) &body body)
@@ -246,15 +252,17 @@
       1->2.  See also: run-tests, get-tests reintern-package
   "
   (when package
-    (setf name (%in-package name package)))
+    (setf name (%in-package (%dequote name) package)
+          tags (%in-package (mapcar #'%dequote
+                                    (alexandria:ensure-list
+                                     (%dequote tags)))
+                            package)))
   `(progn
     (install-test
      (make-instance 'unit-test
       :name ',name
       :doc ,(when (stringp (first body)) (first body))
-      :tags ,(if package
-                 `(%in-package ,tags ,package)
-                 tags)
+      :tags ',tags
       :code '(,@body)
       :contexts (combine-contexts ,contexts)
       ))
