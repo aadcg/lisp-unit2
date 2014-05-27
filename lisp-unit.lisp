@@ -251,12 +251,11 @@
       packaged::symbols), but will be useful when converting from lisp-unit
       1->2.  See also: run-tests, get-tests reintern-package
   "
+  (setf tags (mapcar #'%dequote (alexandria:ensure-list (%dequote tags)))
+        name (%dequote name))
   (when package
-    (setf name (%in-package (%dequote name) package)
-          tags (%in-package (mapcar #'%dequote
-                                    (alexandria:ensure-list
-                                     (%dequote tags)))
-                            package)))
+    (setf name (%in-package name package)
+          tags (%in-package tags package)))
   `(progn
     (install-test
      (make-instance 'unit-test
