@@ -42,7 +42,18 @@
 
 (defgeneric default-epsilon (value)
   (:documentation
-   "Return the default epsilon for the value."))
+   "Return the default epsilon for the value.")
+  (:method (value)
+    (typecase value
+      (sequence
+       (or (loop for v being the elements of value
+                 maximize (default-epsilon v))
+           0))
+      (short-float  (* 2S0 short-float-epsilon))
+      (single-float (* 2F0 single-float-epsilon))
+      (double-float (* 2D0 double-float-epsilon))
+      (long-float   (* 2L0 long-float-epsilon))
+      (number 0))))
 
 (defgeneric relative-error (exact approximate)
   (:documentation
@@ -109,41 +120,6 @@
 (defgeneric numerical-equal (result1 result2 &key test)
   (:documentation
    "Return true if the results are numerically equal according to :TEST."))
-
-;;; (DEFAULT-EPSILON value) => epsilon
-(defmethod default-epsilon ((value float))
-  "Return a default epsilon value based on the floating point type."
-  (typecase value
-    (short-float  (* 2S0 short-float-epsilon))
-    (single-float (* 2F0 single-float-epsilon))
-    (double-float (* 2D0 double-float-epsilon))
-    (long-float   (* 2L0 long-float-epsilon))))
-
-(defmethod default-epsilon ((value complex))
-  "Return a default epsilon value based on the complex type."
-  (typecase value
-    ((complex short-float)  (* 2S0 short-float-epsilon))
-    ((complex single-float) (* 2F0 single-float-epsilon))
-    ((complex double-float) (* 2D0 double-float-epsilon))
-    ((complex long-float)   (* 2L0 long-float-epsilon))
-    (t 0)))
-
-(defmethod default-epsilon ((value list))
-  "Return the default epsilon based on contents of the list."
-  (loop for val in value maximize (default-epsilon val)))
-
-(defmethod default-epsilon ((value vector))
-  "Return the default epsilon based on the contents of the vector."
-  (loop for val across value maximize (default-epsilon val)))
-
-(defmethod default-epsilon ((value array))
-  "Return the default epsilon based on the contents of the array."
-  (loop for val across
-        (make-array
-         (array-total-size value)
-         :element-type (array-element-type value)
-         :displaced-to value)
-        maximize (default-epsilon val)))
 
 #|
   (RELATIVE-ERROR x y) => float
