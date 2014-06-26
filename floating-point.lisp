@@ -50,7 +50,35 @@
 
 (defgeneric float-equal (data1 data2 &optional epsilon)
   (:documentation
-   "Return true if the floating point data is equal."))
+   "Return true if the floating point data is equal.")
+  (:method ( x y &optional (epsilon *epsilon*))
+    (when (and (null x) (null y))
+      (return-from float-equal t))
+    (when (or (null x) (null y))
+      (return-from float-equal nil))
+    ;; not similar enough types
+    (unless (or (and (numberp x) (numberp y))
+                (and (typep x 'sequence) (typep y 'sequence)))
+      (return-from float-equal nil))
+    ;; do the actual test
+    (typecase x
+      (sequence
+       (when (= (length x) (length y))
+         (every
+          (lambda (d1 d2) (float-equal d1 d2 epsilon))
+          x y)))
+      (float
+       (setf epsilon
+             (or epsilon (max (default-epsilon x)
+                              (default-epsilon y))))
+       (or
+        (and (zerop x) (zerop y))
+        (< (%relative-error x y) epsilon)))
+      (number
+       (typecase y
+         (float (float-equal y (float x y) epsilon))
+         ;; two non float numbers
+         (number (= x y)))))))
 
 (defgeneric sumsq (data)
   (:documentation
@@ -155,108 +183,6 @@ point value."
       (%relative-error exact approximate)
       (error "Relative error is only applicable to complex values with ~
               floating point parts.")))
-
-;;; (FLOAT-EQUAL data1 data2 epsilon) => true or false
-(defun %float-equal (data1 data2 epsilon)
-  "Return true if the relative error between the data is less than
-epsilon."
-  (or
-   (and (zerop data1) (zerop data2))
-   (< (%relative-error data1 data2) epsilon)))
-
-(defmethod float-equal ((data1 float) (data2 float)
-                        &optional (epsilon *epsilon*))
-  "Return true if the relative error between data1 and data2 is less
-than epsilon."
-  (%float-equal data1 data2
-                (or epsilon (max (default-epsilon data1)
-                                 (default-epsilon data2)))))
-
-(defmethod float-equal ((data1 float) (data2 rational)
-                        &optional (epsilon *epsilon*))
-  "Return true if the relative error between data1 and data2 is less
-than epsilon."
-  (%float-equal data1 (float data2 data1)
-                (or epsilon (default-epsilon data1))))
-
-(defmethod float-equal ((data1 rational) (data2 float)
-                        &optional (epsilon *epsilon*))
-  "Return true if the relative error between data1 and data2 is less
-than epsilon."
-  (%float-equal (float data1 data2) data2
-                (or epsilon (default-epsilon data2))))
-
-(defmethod float-equal ((data1 float) (data2 complex)
-                        &optional (epsilon *epsilon*))
-  "Return true if the relative error between data1 and data2 is less
-than epsilon."
-  (%float-equal data1 data2
-                (or epsilon (max (default-epsilon data1)
-                                 (default-epsilon data2)))))
-
-(defmethod float-equal ((data1 complex) (data2 float)
-                        &optional (epsilon *epsilon*))
-  "Return true if the relative error between data1 and data2 is less
-than epsilon."
-  (%float-equal data1 data2
-                (or epsilon (max (default-epsilon data1)
-                                 (default-epsilon data2)))))
-
-(defmethod float-equal ((data1 complex) (data2 complex)
-                        &optional (epsilon *epsilon*))
-  "Return true if the relative error between data1 and data2 is less
-than epsilon."
-  (< (relative-error data1 data2)
-     (or epsilon (max (default-epsilon data1)
-                      (default-epsilon data2)))))
-
-(defun %seq-float-equal (seq1 seq2 epsilon)
-  "Return true if the element-wise comparison of relative error is
-less than epsilon."
-  (or
-   (and (null seq1) (null seq2))
-   (when (= (length seq1) (length seq2))
-     (every
-      (lambda (d1 d2) (float-equal d1 d2 epsilon)) seq1 seq2))))
-
-(defmethod float-equal ((data1 list) (data2 list)
-                        &optional (epsilon *epsilon*))
-  "Return true if the lists are equal in length and element-wise
-comparison of the relative error is less than epsilon."
-  (%seq-float-equal data1 data2 epsilon))
-
-(defmethod float-equal ((data1 list) (data2 vector)
-                        &optional (epsilon *epsilon*))
-  "Return true if the vector and the list are equal in length and
-element-wise comparison of the relative error is less than epsilon."
-  (%seq-float-equal data1 data2 epsilon))
-
-(defmethod float-equal ((data1 vector) (data2 list)
-                        &optional (epsilon *epsilon*))
-  "Return true if the vector and the list are equal in length and
-element-wise comparison of the relative error is less than epsilon."
-  (%seq-float-equal data1 data2 epsilon))
-
-(defmethod float-equal ((data1 vector) (data2 vector)
-                        &optional (epsilon *epsilon*))
-  "Return true if the vectors are equal in length and element-wise
-comparison of the relative error is less than epsilon."
-  (%seq-float-equal data1 data2 epsilon))
-
-(defmethod float-equal ((data1 array) (data2 array)
-                        &optional (epsilon *epsilon*))
-  "Return true if the arrays are equal in length and element-wise
-comparison of the relative error is less than epsilon."
-  (when (equal (array-dimensions data1)
-               (array-dimensions data2))
-    (%seq-float-equal
-     (make-array (array-total-size data1)
-                 :element-type (array-element-type data1)
-                 :displaced-to data1)
-     (make-array (array-total-size data2)
-                 :element-type (array-element-type data2)
-                 :displaced-to data2)
-     epsilon)))
 
 (defmacro assert-float-equal (expected form &rest extras)
   `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'float-equal))

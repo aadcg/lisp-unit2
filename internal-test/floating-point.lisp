@@ -1,8 +1,22 @@
 (in-package :lisp-unit2-tests)
 
+(define-test float-equal-test (:tags '(float))
+  (assert-float-equal 1 1)
+  (assert-float-equal 1.5 1.5)
+  (assert-float-equal 1.5 3/2)
+  (assert-float-equal 3/2 1.5)
+  (assert-float-equal 3/2 3/2)
+  (assert-float-equal 17 17.0000d0)
+  (assert-float-equal 17.00000000000000000000000000001d0 17.0d0)
+  (assert-float-equal 17.00000000000002 17.000000000000)
+  (assert-float-equal 17.00000000000000000000000000001d0 17.0)
+  (assert-float-equal 17.00000000000002 17.000000000000)
+  (assert-float-equal 17.00000000000002 17.000000000000d0)
+  )
+
 ;;; List norms
 
-(define-test %norm-list (:tags '(norm))
+(define-test %norm-list (:tags '(norm float))
   "Internal test of %norm on lists."
   ;; Taxicab norm
   (assert-rational-equal
@@ -41,7 +55,7 @@
 
 ;;; Vector norms
 
-(define-test %norm-vector (:tags '(norm))
+(define-test %norm-vector (:tags '(norm float))
   "Internal test of %norm on vectors"
   ;; Taxicab norm
   (assert-rational-equal
