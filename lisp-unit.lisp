@@ -55,7 +55,8 @@
    (code :accessor code :initarg :code :initform nil
          :documentation "The forms to produce the fn")
    (tags :accessor tags :initarg :tags :initform nil)
-   (most-recent-result :accessor most-recent-result :initarg :most-recent-result :initform nil))
+   (most-recent-result :accessor most-recent-result :initarg :most-recent-result :initform nil)
+   (eval-package :accessor eval-package :initarg :eval-package :initform nil))
   (:documentation
    "Organize the unit test documentation and code."))
 
@@ -191,9 +192,10 @@
 (defgeneric %compile (unit-test)
   (:method  ((u unit-test))
     (%log-around (#?"Compiling Test: ${ (name u) }" :start-level 0)
-      (compile (test-thunk-name u)
-               `(lambda ()
-                 (declare (optimize (debug 3))) ,@(code u))))))
+      (let ((*package* (eval-package u)))
+        (compile (test-thunk-name u)
+                 `(lambda ()
+                   (declare (optimize (debug 3))) ,@(code u)))))))
 
 
 (defun test-name-error-report (test-name-error stream)
@@ -264,6 +266,7 @@
       :tags ',tags
       :code '(,@body)
       :contexts (combine-contexts ,contexts)
+      :eval-package *package*
       ))
     (defun ,name (&key test-contexts)
       (declare (optimize (debug 3)))
