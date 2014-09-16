@@ -45,8 +45,12 @@
    "Return the default epsilon for the value.")
   (:method (value)
     (typecase value
-      (sequence
-       (or (loop for v being the elements of value
+      (array
+       (or (loop for v across value
+                 maximize (default-epsilon v))
+           0))
+      (list
+       (or (loop for v in value
                  maximize (default-epsilon v))
            0))
       (short-float  (* 2S0 short-float-epsilon))
