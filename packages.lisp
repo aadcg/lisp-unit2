@@ -2,6 +2,8 @@
 
 (handler-bind
     ;; fixes sbcl SUPER warnings that prevent automatic fasl loading
+    ;; These are generated when the package definition doesnt match
+    ;; the one currently in the file (eg: removing an export)
     ((warning (lambda (c)
                 (format *error-output* "~A~%~S" c c)
                 (muffle-warning c))))
