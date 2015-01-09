@@ -266,5 +266,5 @@ vice versa."
 
 (defmacro with-failure-debugging (() &body body)
   "A context macro that invokes the debugger on failed assertions"
-  `(with-assertion-debugging-context (lambda () ,@body)))
+  `(with-failure-debugging-context (lambda () ,@body)))
 
