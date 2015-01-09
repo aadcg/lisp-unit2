@@ -86,10 +86,15 @@
     (:export #:assertion-pass #:assertion-fail
              #:all-tests-start #:all-tests-complete
              #:test-start #:test-complete
-     :results)
+             :results)
     ;; Utility predicates
-    (:export :logically-equal :set-equal))
+    (:export :logically-equal :set-equal)))
 
+(handler-bind
+    ;; fixes sbcl SUPER warnings that prevent automatic fasl loading
+    ((warning (lambda (c)
+                (format *error-output* "~A~%~S" c c)
+                (muffle-warning c))))
   (defpackage :lisp-unit2-asserts
     (:import-from :lisp-unit2
      :assert-eq :assert-eql :assert-equal :assert-equalp
