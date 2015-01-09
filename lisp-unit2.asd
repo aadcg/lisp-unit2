@@ -9,7 +9,8 @@
   :license "MIT"
   :serial t
   :components
-  ((:file "packages")
+  ((:file "package")
+   (:file "assert-package")
    (:file "vars")
    (:file "collectors")
    (:file "asserts")
