@@ -114,7 +114,7 @@ while maintaining its benefits and workflow
 ;; tests are running or after all the tests have run
 
 ;; to disable the debugger:
-(let (*debug-hook*)
+(let (*debugger-hook*)
   (run-tests :tests 'my-tests::test-subtraction))
 
 ;; to debug failed assertions with the context function
