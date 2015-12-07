@@ -133,16 +133,15 @@
   "
   (%log-around (#?"get-tests:${tests} tags:${tags} package:${package} reintern-package:${reintern-package} exclude-tags:${exclude-tags} exclude-tests:${ exclude-tests }"
                 :start-level 0)
-
+    (setf tests (alexandria:ensure-list tests)
+          tags (alexandria:ensure-list tags)
+          exclude-tests (alexandria:ensure-list exclude-tests)
+          exclude-tags (alexandria:ensure-list exclude-tags))
     (when reintern-package
-      (setf tests (alexandria:ensure-list
-                   (%in-package tests reintern-package)))
-      (setf tags (alexandria:ensure-list
-                  (%in-package tags reintern-package)))
-      (setf exclude-tests (alexandria:ensure-list
-                           (%in-package exclude-tests reintern-package)))
-      (setf exclude-tags (alexandria:ensure-list
-                          (%in-package exclude-tags reintern-package))))
+      (setf tests (%in-package tests reintern-package))
+      (setf tags (%in-package tags reintern-package))
+      (setf exclude-tests (%in-package exclude-tests reintern-package))
+      (setf exclude-tags (%in-package exclude-tags reintern-package)))
     ;; defaults to pulling up all tests in the current package
     (when (and (null tests) (null tags) (null package))
       (setf package (package-name *package*)))
@@ -156,8 +155,9 @@
           (for test = (%to-test name))
           (gathered test))
         (flet ((excluded? (test)
-                 (or (and (find (name test) exclude-tests)
-                          (not (find (name test) tests)))
+                 (when (find (name test) tests)
+                   (return-from excluded? nil))
+                 (or (find (name test) exclude-tests)
                      (iter (for tag in (tags test))
                        (thereis (and (find tag exclude-tags)
                                      (not (find tag tags))))))))
