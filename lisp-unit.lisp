@@ -123,6 +123,7 @@
       (warn 'missing-test :test-name id)))
 
 (defun get-tests (&key tests tags package reintern-package
+                  exclude-tests exclude-tags
                   &aux (db *test-db*))
   "finds tests by names, tags, and package
 
@@ -130,25 +131,42 @@
    and tags into the reintern-package.  Mostly provided for easing conversion
    of lisp-unit1 test suites
   "
-  (%log-around (#?"get-tests:${tests} tags:${tags} package:${package} reintern-package:${reintern-package}"
+  (%log-around (#?"get-tests:${tests} tags:${tags} package:${package} reintern-package:${reintern-package} exclude-tags:${exclude-tags} exclude-tests:${ exclude-tests }"
                 :start-level 0)
+
     (when reintern-package
-      (setf tests (%in-package tests reintern-package))
-      (setf tags (%in-package tags reintern-package)))
+      (setf tests (alexandria:ensure-list
+                   (%in-package tests reintern-package)))
+      (setf tags (alexandria:ensure-list
+                  (%in-package tags reintern-package)))
+      (setf exclude-tests (alexandria:ensure-list
+                           (%in-package exclude-tests reintern-package)))
+      (setf exclude-tags (alexandria:ensure-list
+                          (%in-package exclude-tags reintern-package))))
     ;; defaults to pulling up all tests in the current package
     (when (and (null tests) (null tags) (null package))
       (setf package (package-name *package*)))
-    (remove-duplicates
-     (append
-      (iter (for p in (alexandria:ensure-list package))
-        (appending (head (gethash (find-package p) (package-index db)))))
-      (iter (for tag in (alexandria:ensure-list tags))
-        (appending (head (gethash tag (tag-index db)))))
-      (iter (for name in (alexandria:ensure-list tests))
-        (for test = (%to-test name))
-        (when test
-          (collect test))))
-     :key #'name)))
+    (collectors:with-collector-output (out)
+      (collectors:with-appender (gathered)
+        (iter (for p in (alexandria:ensure-list package))
+          (gathered (head (gethash (find-package p) (package-index db)))))
+        (iter (for tag in (alexandria:ensure-list tags))
+          (gathered (head (gethash tag (tag-index db)))))
+        (iter (for name in (alexandria:ensure-list tests))
+          (for test = (%to-test name))
+          (gathered test))
+        (flet ((excluded? (test)
+                 (or (and (find (name test) exclude-tests)
+                          (not (find (name test) tests)))
+                     (iter (for tag in (tags test))
+                       (thereis (and (find tag exclude-tags)
+                                     (not (find tag tags))))))))
+          (iter (for test in (gathered))
+            (unless (or (null test)
+                        (excluded? test)
+                        (find test (out)))
+              (out test))))
+        ))))
 
 
 
@@ -468,7 +486,7 @@
 
 
 (defgeneric run-tests (&key
-                       tests tags package name
+                       tests tags package name exclude-tests exclude-tags
                        test-contexts
                        run-contexts
                        reintern-package)
@@ -492,24 +510,38 @@
 
     run-contexts is a list of contexts that will be applied around the entire
       suite (around signals)
+
+    exclude-tests, exclude-tags: tests / tags to remove from the
+      run. explicit inclusion overrides, explicit exclusion, overrides
+      implicit inclusion
+      EG: (define-test test-takes-forever (manual stuff) ...)
+        (find-test :tags 'stuff :exclude-tags 'manual)
+           will not find test-takes-forever
+        (find-test :tags '(stuff manual) :exclude-tags 'manual)
+        (find-test :tests 'test-takes-forever :exclude-tags 'manual)
+           both will find test-takes-forever
   ")
-  (:method :around (&key tests tags package name
+  (:method :around (&key tests tags package name exclude-tests exclude-tags
                     test-contexts run-contexts
                     reintern-package)
     (declare (ignorable tests tags package test-contexts run-contexts
+                        exclude-tests exclude-tags
                         reintern-package name))
     (%log-around (#?"Running tests${name}:${tests} tags:${tags} package:${package} context:${test-contexts},${run-contexts}")
       (call-next-method)))
   (:method (&rest args
             &key
-            tests tags package reintern-package name
+            tests tags package reintern-package name exclude-tests exclude-tags
             test-contexts
             run-contexts
             &aux
-            (all-tests (get-tests :tests tests
-                                  :tags tags
-                                  :package package
-                                  :reintern-package reintern-package))
+            (all-tests
+             (get-tests :tests tests
+                        :tags tags
+                        :package package
+                        :reintern-package reintern-package
+                        :exclude-tests exclude-tests
+                        :exclude-tags exclude-tags))
             (results (make-instance 'test-results-db :tests all-tests :name name :args args))
             (*results* results))
     (%log #?"Running tests:${all-tests}" :level 0)
