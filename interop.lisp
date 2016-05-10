@@ -11,11 +11,23 @@
   (declare (ignore (start)))
   (error "Requires asdf"))
 
-#+asdf
+#+asdf3
 (defun get-system-list (start &aux list)
   (labels ((do-it (sys-name)
              (let* ((sys (asdf/system:find-system sys-name))
                     (deps (slot-value sys 'asdf/component:sideway-dependencies)))
+               ;; ensures that all dependencies are before things that depend on them
+               (setf list (delete sys-name list :test #'equal))
+               (push sys-name list)
+               (mapc #'do-it deps))))
+    (mapc #'do-it (alexandria:ensure-list start))
+    list))
+
+#-asdf3 #+asdf
+(defun get-system-list (start &aux list)
+  (labels ((do-it (sys-name)
+             (let* ((sys (asdf:find-system sys-name))
+                    (deps (slot-value sys 'asdf:load-dependencies)))
                ;; ensures that all dependencies are before things that depend on them
                (setf list (delete sys-name list :test #'equal))
                (push sys-name list)
