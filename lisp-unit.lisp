@@ -124,7 +124,7 @@
 
 (defun get-tests (&key tests tags package reintern-package
                   exclude-tests exclude-tags
-                  &aux (db *test-db*))
+                  &aux (db *test-db*) out)
   "finds tests by names, tags, and package
 
    if reintern-package is provided, reintern all symbols provided for tests
@@ -145,8 +145,12 @@
     ;; defaults to pulling up all tests in the current package
     (when (and (null tests) (null tags) (null package))
       (setf package (package-name *package*)))
-    (collectors:with-collector-output (out)
-      (collectors:with-appender (gathered)
+    (let ((gathered))
+      (flet ((gathered (&rest them)
+               (when them
+                 (setf gathered
+                       (alexandria:flatten (list gathered them))))
+               gathered))
         (iter (for p in (alexandria:ensure-list package))
           (gathered (head (gethash (find-package p) (package-index db)))))
         (iter (for tag in (alexandria:ensure-list tags))
@@ -164,9 +168,10 @@
           (iter (for test in (gathered))
             (unless (or (null test)
                         (excluded? test)
-                        (find test (out)))
-              (out test))))
-        ))))
+                        (find test out-tests))
+              (collect test into out-tests))
+            (finally
+             (return out-tests))))))))
 
 
 
