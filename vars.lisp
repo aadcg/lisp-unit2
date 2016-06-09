@@ -1,7 +1,7 @@
 (in-package :lisp-unit2)
 (cl-interpol:enable-interpol-syntax)
 
-(defvar *test-stream* *standard-output*)
+(defvar *test-stream* (make-synonym-stream '*standard-output*))
 (defvar *test-log-stream* *test-stream*)
 (defvar *unit-test* nil
   "The currently executing unit test (bound in %run-test, ie every test
