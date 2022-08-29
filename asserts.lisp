@@ -50,6 +50,56 @@ vice versa."
   `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'equalp
     :full-form ',whole))
 
+(defmacro assert-string= (&whole whole expected form &rest extras)
+  "Assert whether expected and form are STRING=."
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'string=
+    :full-form ',whole))
+
+(defmacro assert-string-equal (&whole whole expected form &rest extras)
+  "Assert whether expected and form are STRING-EQUAL."
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'string-equal
+    :full-form ',whole))
+
+(defmacro assert-string/= (&whole whole expected form &rest extras)
+  "Assert whether expected and form are STRING/=."
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'string/=
+    :full-form ',whole))
+
+(defmacro assert-string-not-equal (&whole whole expected form &rest extras)
+  "Assert whether expected and form are STRING-NOT-EQUAL."
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'string-not-equal
+    :full-form ',whole))
+
+(defmacro assert-char= (&whole whole expected form &rest extras)
+  "Assert whether expected and form are CHAR=."
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'char=
+    :full-form ',whole))
+
+(defmacro assert-char-equal (&whole whole expected form &rest extras)
+  "Assert whether expected and form are CHAR-EQUAL."
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'char-equal
+    :full-form ',whole))
+
+(defmacro assert-char/= (&whole whole expected form &rest extras)
+  "Assert whether expected and form are CHAR/=."
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'char/=
+    :full-form ',whole))
+
+(defmacro assert-char-not-equal (&whole whole expected form &rest extras)
+  "Assert whether expected and form are CHAR-NOT-EQUAL."
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'char-not-equal
+    :full-form ',whole))
+
+(defmacro assert= (&whole whole expected form &rest extras)
+  "Assert whether expected and form are =."
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'=
+    :full-form ',whole))
+
+(defmacro assert/= (&whole whole expected form &rest extras)
+  "Assert whether expected and form are /=."
+  `(expand-assert 'equal-result ,form ,form ,expected ,extras :test #'/=
+    :full-form ',whole))
+
 (defmacro assert-typep (&whole whole expected-type form &rest extras)
   "Assert whether expected and form are TYPEP."
   `(expand-assert
@@ -267,4 +317,3 @@ vice versa."
 (defmacro with-failure-debugging (() &body body)
   "A context macro that invokes the debugger on failed assertions"
   `(with-failure-debugging-context (lambda () ,@body)))
-
