@@ -3,7 +3,7 @@
 
 (defsystem :lisp-unit2
   :description "Common Lisp library that supports unit testing."
-  :version "0.2.0"
+  :version "0.9.3"
   :author "Russ Tyndall <russ@acceleration.net>, Acceleration.net,
            Thomas M. Hermann <thomas.m.hermann@odonata-research.com>"
   :license "MIT"
@@ -24,7 +24,7 @@
 
 (defsystem :lisp-unit2-test
   :description "Tests for lisp-unit2 "
-  :version "0.2.0"
+  :version "0.9.3"
   :author "Russ Tyndall <russ@acceleration.net>, Acceleration.net,
            Thomas M. Hermann <thomas.m.hermann@odonata-research.com>"
   :license "MIT"
