@@ -19,6 +19,9 @@
      :assert-warning :assert-no-warning
      :assert-signal :assert-no-signal
      :assert-typep
+     :assert-string= :assert-string-equal :assert-string/=
+     :assert-string-not-equal :assert-char= :assert-char-equal
+     :assert-char/= :assert-char-not-equal :assert= :assert/=
      ;; floating point
      :*measure* :*epsilon* :*significant-figures*
      :default-epsilon :sumsq :sump :norm
