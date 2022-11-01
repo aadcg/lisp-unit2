@@ -22,8 +22,8 @@
    (:file "interop"))
   :depends-on (:alexandria :cl-interpol :iterate :symbol-munger))
 
-(defsystem :lisp-unit2-test
-  :description "Tests for lisp-unit2 "
+(defsystem :lisp-unit2/tests
+  :description "Tests for lisp-unit2."
   :version "0.9.4"
   :author "Russ Tyndall <russ@acceleration.net>, Acceleration.net,
            Thomas M. Hermann <thomas.m.hermann@odonata-research.com>"
