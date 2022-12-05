@@ -39,7 +39,7 @@
   :depends-on (:lisp-unit2))
 
 (defmethod asdf:perform ((o asdf:test-op) (c (eql (find-system :lisp-unit2))))
-  (asdf:load-system :lisp-unit2-test)
+  (asdf:load-system :lisp-unit2/tests)
   (let ((*package* (find-package :lisp-unit2-tests)))
     (eval (read-from-string
            "(lisp-unit2:run-tests
